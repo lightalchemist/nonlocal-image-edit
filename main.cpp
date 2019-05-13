@@ -37,6 +37,17 @@ void computeKernelWeights(const cv::Mat& I,
                           Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>& Kab,
                           int nSamples = 50)
 {
+    // Compute single step size for rows and cols by taking into account their
+    // ratios
+    
+    // Reshape channel I into a single column vector.
+    // Store the 1D or 2D coordinates of the selected pixels corresponding to Ka
+    // Perform stable_partition to move the values of these coordinates to the top
+    // of 1D vector.
+    // Compute kernel
+    // Save these coordinates
+    
+    
     auto nrows = I.rows;
     auto ncols = I.cols;
     auto N = nrows * ncols;
