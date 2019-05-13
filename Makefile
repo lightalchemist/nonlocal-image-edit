@@ -8,7 +8,7 @@ else
 endif
 
 # ifeq ($(BUILD), debug)
-CFLAGS += -g -O0
+CFLAGS += -ggdb3 -O0
 # else
 	# CFLAGS += -O3 -DNDEBUG
 # endif
