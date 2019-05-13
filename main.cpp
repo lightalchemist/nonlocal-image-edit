@@ -6,9 +6,9 @@
 #include <string>
 #include <vector>
 
-#include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/highgui.hpp>
-#include <opencv4/opencv2/imgproc.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -120,6 +120,15 @@ void nystromApproximation(const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dyn
 }
 
 template <typename T>
+std::vector<T> convertToVec(const cv::Mat& I) {
+    std::vector<T> v;
+    v.reserve(I.total());
+    std::copy(I.begin<T>(), I.end<T>(), std::back_inserter(v));
+    
+    return v;
+}
+
+template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 {
     cv::Mat Ilab;
@@ -130,9 +139,20 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // TODO: Remember to convert back to 8U before merging
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
-
+    
+    std::vector<double> v = convertToVec<double>(L);
+    assert(v.size() == L.total());
+    
+    
+    
+    
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Ka, Kab;
-    computeKernelWeights(L, Ka, Kab);
+    
+    if (L.isContinuous()) {
+        std::cout << "Mat is continuous" << std::endl;
+    }
+    
+//    computeKernelWeights(L, Ka, Kab);
 
     // nystromApproximation(Ka, Kab);
 
@@ -162,6 +182,8 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     return cv::Mat();
 }
 
+
+
 int main(int argc, char* argv[])
 {
     if (argc < 7) {
@@ -189,6 +211,13 @@ int main(int argc, char* argv[])
     }
 
     std::cout << image.size() << std::endl;
+    
+    std::cout << "Size: " << image.size() << std::endl;
+    std::cout << "# elements: " << image.size().width * image.size().height << std::endl;
+    std::cout << "# elements: " << image.total() << std::endl;
+    
+//    cv::imshow("original", image);
+//    cv::waitKey(0);
 
     // Always convert image to landscape mode first by rotating it
     // Then rotate it back later. This is to ensure we always sample the shorter side
