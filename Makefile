@@ -17,13 +17,9 @@ LDFLAGS = -L/usr/local/lib -lopencv_core -lopencv_highgui -lopencv_imgproc -lope
 
 CC = clang++
 EXE = "image_filter"
-TEST_EXE = "test"
 
-all: src/main.cpp | output_directory
-	$(CC) $(CFLAGS) $(LDFLAGS) src/main.cpp -o "bin/$(EXE)"
-
-test: src/test_eigen.cpp | output_directory
-	$(CC) `pkg-config --cflags eigen3` -o "bin/$(TEST_EXE)" src/test_eigen.cpp
+all: main.cpp | output_directory
+	$(CC) $(CFLAGS) $(LDFLAGS) main.cpp -o "bin/$(EXE)"
 
 output_directory:
 	@mkdir -p bin
