@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -17,10 +18,18 @@
 #include <Eigen/Eigenvalues>
 
 
-double kernel(const cv::Mat& I, int r, int s, double gamma) {
+double kernel(const cv::Mat& I,
+              int r, int s,
+              int r1, int c1, int r2, int c2,
+              double gammaSpatial, double gammaIntensity) {
+    
     auto yr = I.at<double>(r, 0);
     auto ys = I.at<double>(s, 0);
-    return std::exp(- gamma * (yr - ys) * (yr - ys));
+    
+    // Add in spatial term
+    double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
+    double squareIntensityDist = (yr - ys) * (yr - ys);
+    return std::exp(- gammaSpatial * squareSpatialDist - gammaIntensity * squareIntensityDist);
 }
 
 template <typename T>
@@ -28,14 +37,59 @@ inline T to1DIndex(T row, T col, T ncols) {
     return row * ncols + col;
 }
 
+template <typename T>
+inline auto to2DCoords(T index, T ncols) {
+    return std::make_pair(index / ncols, index % ncols);
+}
+
 double estimateVariance(const cv::Mat& I) {
     return 100.0;
 }
 
+template <typename T>
+std::vector<T> convertToVec(const cv::Mat& I) {
+    std::vector<T> v;
+    v.reserve(I.total());
+    std::copy(I.begin<T>(), I.end<T>(), std::back_inserter(v));
+    
+    return v;
+}
+
+auto samplePixels(int nrows, int ncols, int nRowSamples) {
+    float ratio = static_cast<float>(ncols) / static_cast<float>(nrows);
+    int nColSamples =  std::floor(std::fmax(ratio * nRowSamples, 1.0));
+    
+    // Crude estimate. We can improve on this later by having initial row and col offset.
+    int rowStep = nrows / nRowSamples;
+    int colStep = ncols / nColSamples;
+    
+    int nPixels = nrows * ncols;
+    int nSamples = nRowSamples * nColSamples;
+    
+    std::vector<int> selected;
+    std::vector<int> rest;
+    selected.reserve(nSamples);
+    rest.reserve(nPixels - nSamples);
+    
+    for (int r = 0; r < nrows; r++) {
+        for (int c = 0; c < ncols; c++) {
+            if ((r % rowStep) == 0 && (c % colStep == 0)) {
+                selected.push_back(to1DIndex(r, c, ncols));
+            }
+            else {
+                rest.push_back(to1DIndex(r, c, ncols));
+            }
+        }
+    }
+    
+//    selected.insert(selected.end(), rest.begin(), rest.end());
+    return std::make_pair(selected, rest);
+}
+
 void computeKernelWeights(const cv::Mat& I,
-                          Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>& Ka,
-                          Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>& Kab,
-                          int nSamples = 50)
+                          Eigen::MatrixXd& Ka,
+                          Eigen::MatrixXd& Kab,
+                          int nRowSamples = 10)
 {
     // Compute single step size for rows and cols by taking into account their
     // ratios
@@ -47,59 +101,59 @@ void computeKernelWeights(const cv::Mat& I,
     // Compute kernel
     // Save these coordinates
     
+    auto nrows = I.rows, ncols = I.cols;
+    auto nPixels = nrows * ncols;
     
-    auto nrows = I.rows;
-    auto ncols = I.cols;
-    auto N = nrows * ncols;
-
-    // Crude estimate. We can improve on this later.
-    auto step = nrows / nSamples;
+    std::vector<int> selected, rest;
+    std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples);
+    int nSamples = selected.size();
 
     Ka.resize(nSamples, nSamples);
-    Kab.resize(nSamples, N - nSamples);
+    Kab.resize(nSamples, nPixels - nSamples);
 
-    std::cout << "Finished resizing: N: " << N << std::endl;
-    std::cout << "step: " << step << std::endl;
+    std::cout << "nPixels: " << nPixels << std::endl;
     std::cout << "Ka size: " << Ka.rows() << " x " << Ka.cols() << std::endl;
     std::cout << "Kab size: " << Kab.rows() << " x " << Kab.cols() << std::endl;
 
+    double variance = estimateVariance(I);
+    double gammaIntensity = 1.0 / variance;
+    double gammaSpatial = 0; // 1.0 / 10;
+    
+    // This is row vector
     cv::Mat II = I.reshape(0, 1);
     std::cout << "II shape: " << II.size() << std::endl;
-
-    double variance = estimateVariance(I);
-    double gamma = 1 / variance;
-
-    // Sample rows and compute kernel matrix
-    for (auto k = 0, i = 0; k < nSamples; ++k, i = k * step) {
-        auto r = to1DIndex(i, 0, ncols);
-        for (auto j = 0; j < nSamples; ++j) {
-            auto s = to1DIndex(i, j, ncols);
-            std::cout << "r: " << r << " s: " << s <<  " k: " << k << std::endl;
-            // auto u = kernel(II, r, s, gamma);
-            // std::cout << "u: " << u << std::endl;
-            // Ka(k, s) = kernel(II, r, s, gamma);
-            Ka(k, s) = 1;
+    // Compute Ka
+    int r1, c1, r2, c2;
+    for (int i : selected) {
+        std::tie(r1, c1) = to2DCoords(i, ncols);
+        
+        // Compute Ka
+        for (int j : selected) {
+            std::tie(r2, c2) = to2DCoords(j, ncols);
+            Ka(i, j) = kernel(II, i, j, r1, c1, r2, c2,
+                              gammaSpatial, gammaIntensity);
         }
-
-        std::cout << "Finished first block" << std::endl;
-        for (auto j = nSamples; j < ncols; ++j) {
-            auto s = to1DIndex(i, j, ncols);
-            // std::cout << "r: " << r << " s: " << s << std::endl;
-            // auto u = kernel(II, r, s, gamma);
-            // std::cout << "u: " << u << std::endl;
-            // Kab(k, s - nSamples) = kernel(II, r, s, gamma);
-            assert(k < nSamples);
-            assert(nSamples < N);
-
-            // Kab(k, s - nSamples) = 1;
+        
+        // Compute Kab
+        for (int j : rest) {
+            std::tie(r2, c2) = to2DCoords(j, ncols);
+            Kab(i, j) = kernel(II, i, j, r1, c1, r2, c2,
+                               gammaSpatial, gammaIntensity);
         }
     }
 }
 
-template <typename T>
-void sinkhorn(T& Ka, T& Kab)
-{
-}
+//void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals,
+//              int maxIter=20)
+//{
+//    int n = phi.rows();
+//    auto r = Eigen::ArrayXXf::Ones(n, 1);
+//
+//    for (int i = 0; i < maxIter; i++) {
+//
+//    }
+//
+//}
 
 template <typename T>
 T invSqRoot(T& M)
@@ -115,28 +169,30 @@ void scaleEigenValues(const T& weights)
 
 // double photoMetricKernel(const cv::Mat)
 
-void nystromApproximation(const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>& Ka,
-                          const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>& Kab) {
+Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
+                                     const Eigen::MatrixXd& Kab,
+                                     double eps=0.00001) {
 
     // Eigendecomposition of Ka
     Eigen::EigenSolver<Eigen::MatrixXd> es(Ka);
 
     auto eigvals = es.eigenvalues();
     auto eigvecs = es.eigenvectors();
+    
+    // TODO: Maybe manually invert eigenvalue matrix and threshold those with eigenvalues < eps to 0
+    Eigen::MatrixXd invEigVals = (eigvals.array() + eps).matrix().asDiagonal().inverse();
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
-
-
-}
-
-template <typename T>
-std::vector<T> convertToVec(const cv::Mat& I) {
-    std::vector<T> v;
-    v.reserve(I.total());
-    std::copy(I.begin<T>(), I.end<T>(), std::back_inserter(v));
+    std::cout << "eigvecs shape: " << eigvecs.rows() << " x " << eigvecs.cols() << std::endl;
+    std::cout << "invEigVals shape: " << invEigVals.rows() << " x " << invEigVals.cols() << std::endl;
     
-    return v;
+    int p = Ka.rows();
+    int n = eigvecs.rows();
+    Eigen::MatrixXd phi(n, p);
+    phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
+
+    return phi;
 }
 
 template <typename T>
@@ -151,17 +207,8 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
     
-    std::vector<double> v = convertToVec<double>(L);
-    assert(v.size() == L.total());
-    
-    
-    
-    
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Ka, Kab;
-    
-    if (L.isContinuous()) {
-        std::cout << "Mat is continuous" << std::endl;
-    }
+    Eigen::MatrixXd Ka, Kab;
+
     
 //    computeKernelWeights(L, Ka, Kab);
 
