@@ -26,17 +26,17 @@ double kernel(const cv::Mat& I,
     // Ensure that I is 1 dimensional
     assert(I.rows == 1);
 
-    return 1.0;
+    // return 1.0;
 
     // auto yr = I.at<double>(r, 0);
     // auto ys = I.at<double>(s, 0);
-    // auto yr = I.at<double>(0, r);
-    // auto ys = I.at<double>(0, s);
+    auto yr = I.at<double>(0, r);
+    auto ys = I.at<double>(0, s);
     
     // Add in spatial term
-    // double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
-    // double squareIntensityDist = (yr - ys) * (yr - ys);
-    // return std::exp(- spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
+    double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
+    double squareIntensityDist = (yr - ys) * (yr - ys);
+    return std::exp(- spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
 }
 
 inline unsigned int to1DIndex(unsigned int row, unsigned int col, unsigned int ncols) {
@@ -60,16 +60,20 @@ std::vector<T> convertToVec(const cv::Mat& I) {
     return v;
 }
 
-auto samplePixels(int nrows, int ncols, int nRowSamples) {
+auto samplePixels(unsigned int nrows, unsigned int ncols, unsigned int nRowSamples) {
     float ratio = static_cast<float>(ncols) / static_cast<float>(nrows);
     int nColSamples =  std::floor(std::fmax(ratio * nRowSamples, 1.0));
+
+    unsigned int nPixels = nrows * ncols;
+    unsigned int nSamples = nRowSamples * nColSamples;
+
+    unsigned int rowStep = nrows / (nRowSamples);
+    unsigned int colStep = ncols / (nColSamples);
+    unsigned int rOffset = (rowStep + (nrows - nRowSamples * rowStep)) / 2;
+    unsigned int cOffset = (colStep + (ncols - nColSamples * colStep)) / 2;
     
-    // Crude estimate. We can improve on this later by having initial row and col offset.
-    int rowStep = nrows / (nRowSamples + 1);
-    int colStep = ncols / (nColSamples + 1);
-    
-    int nPixels = nrows * ncols;
-    int nSamples = nRowSamples * nColSamples;
+    std::cout << "sample pixel ratio: " << ratio << std::endl;
+    std::cout << "# row samples: " << nRowSamples << " # col samples: " << nColSamples << std::endl;
     
     std::vector<int> selected;
     std::vector<int> rest;
@@ -78,7 +82,9 @@ auto samplePixels(int nrows, int ncols, int nRowSamples) {
     
     for (auto r = 0u; r < nrows; r++) {
         for (auto c = 0u; c < ncols; c++) {
-            if ((r % rowStep) == 0 && (c % colStep == 0)) {
+            if ((r >= rOffset && c >= cOffset) && 
+                ((r - rOffset) % rowStep == 0) && ((c - cOffset) % colStep == 0)) 
+            {
                 selected.push_back(to1DIndex(r, c, ncols));
             }
             else {
@@ -105,7 +111,7 @@ void computeKernelWeights(const cv::Mat& I,
     // Save these coordinates
     
     auto nrows = I.rows, ncols = I.cols;
-    auto nPixels = I.total();
+    unsigned int nPixels = I.total();
     assert(nPixels == nrows * ncols);
     
     std::vector<int> selected, rest;
@@ -150,31 +156,6 @@ void computeKernelWeights(const cv::Mat& I,
         }
     }
 
-    
-    // for (int i : selected) {
-    //     std::tie(r1, c1) = to2DCoords(i, ncols);
-    //     for (int j : selected) {
-    //         std::tie(r2, c2) = to2DCoords(j, ncols);
-    //         assert(0 <= i && i < Ka.rows());
-    //         assert(0 <= j && j < Ka.cols());
-    //         Ka(i, j) = kernel(II, i, j, r1, c1, r2, c2,
-    //                           gammaSpatial, gammaIntensity);
-    //     }
-
-    //     ++k;
-    // }
-
-
-    //     // Compute Kab
-    // for (int i : selected) {
-    //     for (int j : rest) {
-    //         std::tie(r2, c2) = to2DCoords(j, ncols);
-    //         assert(i < Kab.rows());
-    //         assert(j < Kab.cols());
-    //         Kab(i, j) = kernel(II, i, j, r1, c1, r2, c2,
-    //                            gammaSpatial, gammaIntensity);
-    //     }
-    // }
 }
 
 //void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals,
@@ -256,10 +237,25 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // TODO: Check if value of L depends on original type.
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
+
+    auto nrows = I.rows;
+    auto ncols = I.cols;
+    std::vector<int> selected, rest;
+    std::tie(selected, rest) = samplePixels(nrows, ncols, 10);
+    for (auto i : selected) {
+        int r, c;
+        std::tie(r, c) = to2DCoords(i, ncols);
+        cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
+    }
+
+    std::cout << "# selected: " << selected.size() << std::endl;
+
+    cv::imshow("sampled", I);
+    cv::waitKey(-1);
     
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    computeKernelWeights(L, Ka, Kab);
+    // computeKernelWeights(L, Ka, Kab);
     // nystromApproximation(Ka, Kab);
     // sinkhorn(Ka, Kab);
 
