@@ -39,13 +39,11 @@ double kernel(const cv::Mat& I,
     // return std::exp(- spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
 }
 
-template <typename T>
-inline T to1DIndex(T row, T col, T ncols) {
+inline unsigned int to1DIndex(unsigned int row, unsigned int col, unsigned int ncols) {
     return row * ncols + col;
 }
 
-template <typename T>
-inline auto to2DCoords(T index, T ncols) {
+inline auto to2DCoords(unsigned int index, int ncols) {
     return std::make_pair(index / ncols, index % ncols);
 }
 
@@ -78,8 +76,8 @@ auto samplePixels(int nrows, int ncols, int nRowSamples) {
     selected.reserve(nSamples);
     rest.reserve(nPixels - nSamples);
     
-    for (int r = 0; r < nrows; r++) {
-        for (int c = 0; c < ncols; c++) {
+    for (auto r = 0u; r < nrows; r++) {
+        for (auto c = 0u; c < ncols; c++) {
             if ((r % rowStep) == 0 && (c % colStep == 0)) {
                 selected.push_back(to1DIndex(r, c, ncols));
             }
@@ -132,38 +130,51 @@ void computeKernelWeights(const cv::Mat& I,
     std::cout << "II shape: " << II.size() << std::endl;
     // Compute Ka
     int r1, c1, r2, c2;
-    int k = 0;
-    for (int i = 0; i < selected.size(); ++i) {
-        for (int j = 0; j < selected.size(); ++j) {
+    for (auto i = 0u; i < selected.size(); ++i) {
+        std::tie(r1, c1) = to2DCoords(i, ncols);
+        for (auto j = 0u; j < selected.size(); ++j) {
+            std::tie(r2, c2) = to2DCoords(j, ncols);
+            Ka(i, j) = kernel(II, selected[i], selected[j], 
+            r1, c1, r2, c2,
+            gammaSpatial, gammaIntensity);
+        }
+    }
 
+    for (auto i = 0u; i < selected.size(); i++) {
+        std::tie(r1, c1) = to2DCoords(i, ncols);
+        for (auto j = 0u; j < rest.size(); j++) {
+            std::tie(r2, c2) = to2DCoords(j, ncols);
+            Kab(i, j) = kernel(II, selected[i], rest[j],
+                               r1, c1, r2, c2,
+                               gammaSpatial, gammaIntensity);
         }
     }
 
     
-    for (int i : selected) {
-        std::tie(r1, c1) = to2DCoords(i, ncols);
-        for (int j : selected) {
-            std::tie(r2, c2) = to2DCoords(j, ncols);
-            assert(0 <= i && i < Ka.rows());
-            assert(0 <= j && j < Ka.cols());
-            Ka(i, j) = kernel(II, i, j, r1, c1, r2, c2,
-                              gammaSpatial, gammaIntensity);
-        }
+    // for (int i : selected) {
+    //     std::tie(r1, c1) = to2DCoords(i, ncols);
+    //     for (int j : selected) {
+    //         std::tie(r2, c2) = to2DCoords(j, ncols);
+    //         assert(0 <= i && i < Ka.rows());
+    //         assert(0 <= j && j < Ka.cols());
+    //         Ka(i, j) = kernel(II, i, j, r1, c1, r2, c2,
+    //                           gammaSpatial, gammaIntensity);
+    //     }
 
-        ++k;
-    }
+    //     ++k;
+    // }
 
 
-        // Compute Kab
-    for (int i : selected) {
-        for (int j : rest) {
-            std::tie(r2, c2) = to2DCoords(j, ncols);
-            assert(i < Kab.rows());
-            assert(j < Kab.cols());
-            Kab(i, j) = kernel(II, i, j, r1, c1, r2, c2,
-                               gammaSpatial, gammaIntensity);
-        }
-    }
+    //     // Compute Kab
+    // for (int i : selected) {
+    //     for (int j : rest) {
+    //         std::tie(r2, c2) = to2DCoords(j, ncols);
+    //         assert(i < Kab.rows());
+    //         assert(j < Kab.cols());
+    //         Kab(i, j) = kernel(II, i, j, r1, c1, r2, c2,
+    //                            gammaSpatial, gammaIntensity);
+    //     }
+    // }
 }
 
 //void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals,
