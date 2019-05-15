@@ -127,7 +127,7 @@ void computeKernelWeights(const cv::Mat& I,
 
     // TODO: Tune this
     // double variance = estimateVariance(I);
-    double variance = 100;
+    double variance = 400;
     double gammaIntensity = 1.0 / variance;
     double gammaSpatial = 0; // 1.0 / 10;
     
@@ -141,10 +141,31 @@ void computeKernelWeights(const cv::Mat& I,
         for (auto j = 0u; j < selected.size(); ++j) {
             std::tie(r2, c2) = to2DCoords(j, ncols);
             Ka(i, j) = kernel(II, selected[i], selected[j], 
-            r1, c1, r2, c2,
-            gammaSpatial, gammaIntensity);
+                              r1, c1, r2, c2,
+                              gammaSpatial, gammaIntensity);
         }
     }
+
+    for (auto i = 0u; i < Ka.rows(); i++) {
+        for (auto j = 0u; j < Ka.cols(); j++) {
+            if (Ka(i, j) < 0) {
+                std::cout << "Ka(" << i << ", " << j << "): " << Ka(i, j) << std::endl;
+                throw std::runtime_error("Ka contains negative entries");
+            }
+        }
+    }
+
+    std::cout << "All of Ka is >= 0" << std::endl;
+
+    // Ensure that Ka is symmetric
+    assert(Ka.isApprox(Ka.transpose()));
+
+    // Eigen::LLT<Eigen::MatrixXd> lltOfMat(Ka.real()); // compute the Cholesky decomposition of A
+    // if(lltOfMat.info() == Eigen::NumericalIssue)
+    // {
+    //     throw std::runtime_error("Possibly non positive-semi definitie matrix!");
+    // }    
+    
 
     for (auto i = 0u; i < selected.size(); i++) {
         std::tie(r1, c1) = to2DCoords(i, ncols);
@@ -229,6 +250,20 @@ Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
     return phi;
 }
 
+void plotSampledPoints(cv::Mat& I, int nSamples) {
+    auto nrows = I.rows;
+    auto ncols = I.cols;
+    std::vector<int> selected, rest;
+    std::tie(selected, rest) = samplePixels(nrows, ncols, nSamples);
+    for (auto i : selected) {
+        int r, c;
+        std::tie(r, c) = to2DCoords(i, ncols);
+        cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
+    }
+
+    std::cout << "# selected: " << selected.size() << std::endl;
+}
+
 template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 {
@@ -242,24 +277,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
 
-    // auto nrows = I.rows;
-    // auto ncols = I.cols;
-    // std::vector<int> selected, rest;
-    // std::tie(selected, rest) = samplePixels(nrows, ncols, 10);
-    // for (auto i : selected) {
-    //     int r, c;
-    //     std::tie(r, c) = to2DCoords(i, ncols);
-    //     cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
-    // }
-
-    // std::cout << "# selected: " << selected.size() << std::endl;
-
+    // plotSampledPoints(I.clone(), 10);
     // cv::imshow("sampled", I);
     // cv::waitKey(-1);
     
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    computeKernelWeights(L, Ka, Kab, 5);
+    computeKernelWeights(L, Ka, Kab, 7);
 
     std::cout << "Ka top left corner" << std::endl;
     std::cout << Ka.block<5, 5>(0, 0) << std::endl;
