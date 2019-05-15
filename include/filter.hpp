@@ -163,7 +163,7 @@ void computeKernelWeights(const cv::Mat& I,
     // Eigen::LLT<Eigen::MatrixXd> lltOfMat(Ka.real()); // compute the Cholesky decomposition of A
     // if(lltOfMat.info() == Eigen::NumericalIssue)
     // {
-    //     throw std::runtime_error("Possibly non positive-semi definitie matrix!");
+    //      std::runtime_error("Possibly non positive-semi definitie matrix!");
     // }    
     
 
@@ -179,17 +179,17 @@ void computeKernelWeights(const cv::Mat& I,
 
 }
 
-//void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals,
-//              int maxIter=20)
-//{
-//    int n = phi.rows();
-//    auto r = Eigen::ArrayXXf::Ones(n, 1);
-//
-//    for (int i = 0; i < maxIter; i++) {
-//
-//    }
-//
-//}
+void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals, int maxIter=20)
+{
+   int n = phi.rows();
+   auto r = Eigen::ArrayXXf::Ones(n, 1);
+   std::cout << "r rows: " << r.rows() << " cols: " << r.cols() << std::endl;
+
+   for (int i = 0; i < maxIter; i++) {
+
+   }
+
+}
 
 // template <typename T>
 // T invSqRoot(T& M)
@@ -289,7 +289,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     std::cout << Ka.block<5, 5>(0, 0) << std::endl;
 
     nystromApproximation(Ka, Kab);
-    // sinkhorn(Ka, Kab);
+    sinkhorn(Ka, Kab);
 
     // orthogonalization(Wa, Wab, eigenVectors);
 
