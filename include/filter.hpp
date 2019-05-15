@@ -102,14 +102,6 @@ void computeKernelWeights(const cv::Mat& I,
                           Eigen::MatrixXd& Kab,
                           int nRowSamples = 10)
 {
-
-    // Reshape channel I into a single column vector.
-    // Store the 1D or 2D coordinates of the selected pixels corresponding to Ka
-    // Perform stable_partition to move the values of these coordinates to the top
-    // of 1D vector.
-    // Compute kernel
-    // Save these coordinates
-    
     auto nrows = I.rows, ncols = I.cols;
     unsigned int nPixels = I.total();
     assert(nPixels == nrows * ncols);
@@ -145,7 +137,7 @@ void computeKernelWeights(const cv::Mat& I,
                               gammaSpatial, gammaIntensity);
         }
     }
-
+    
     for (auto i = 0u; i < Ka.rows(); i++) {
         for (auto j = 0u; j < Ka.cols(); j++) {
             if (Ka(i, j) < 0) {
@@ -155,11 +147,12 @@ void computeKernelWeights(const cv::Mat& I,
         }
     }
 
-    std::cout << "All of Ka is >= 0" << std::endl;
+    std::cout << "All entries of Ka is >= 0" << std::endl;
 
     // Ensure that Ka is symmetric
     assert(Ka.isApprox(Ka.transpose()));
 
+    // Check that matrix is positive definite
     // Eigen::LLT<Eigen::MatrixXd> lltOfMat(Ka.real()); // compute the Cholesky decomposition of A
     // if(lltOfMat.info() == Eigen::NumericalIssue)
     // {
@@ -179,7 +172,9 @@ void computeKernelWeights(const cv::Mat& I,
 
 }
 
-void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals, int maxIter=20)
+
+
+auto sinkhorn(const Eigen::MatrixXd& phi, const Eigen::MatrixXd& eigvals, int maxIter=20)
 {
    int n = phi.rows();
    auto r = Eigen::ArrayXXf::Ones(n, 1);
@@ -189,19 +184,15 @@ void sinkhorn(Eigen::MatrixXd& phi, Eigen::MatrixXd& eigvals, int maxIter=20)
 
    }
 
+    Eigen::MatrixXd Wa, Wab;
+    
+    return std::tie(Wa, Wab);
 }
 
-// template <typename T>
-// T invSqRoot(T& M)
-// {
-
-//     return M;
-// }
-
-template <typename T>
-void scaleEigenValues(const T& weights)
-{
-}
+//template <typename T>
+//void scaleEigenValues(const T& weights)
+//{
+//}
 
 template <typename T>
 auto invertDiagMatrix(const T& mat, double eps=0.00001) {
@@ -221,9 +212,17 @@ auto invertDiagMatrix(const T& mat, double eps=0.00001) {
     return mat.asDiagonal();
 }
 
-Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
-                                     const Eigen::MatrixXd& Kab,
-                                     double eps=0.00001) {
+auto robustReciprocal(const T& mat, double eps=0.00001) {
+    
+}
+
+auto robustReciprocal(T& mat, double eps=0.00001) {
+    
+    
+}
+
+auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
+                          double eps=0.00001) {
 
     // Eigendecomposition of Ka
     Eigen::EigenSolver<Eigen::MatrixXd> es(Ka);
@@ -247,7 +246,7 @@ Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
     Eigen::MatrixXd phi(n, p);
     phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
 
-    return phi;
+    return std::make_pair(eigvals, phi);
 }
 
 void plotSampledPoints(cv::Mat& I, int nSamples) {
@@ -283,16 +282,21 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    computeKernelWeights(L, Ka, Kab, 7);
-
+    unsigned int nRowSamples = 7;
+    computeKernelWeights(L, Ka, Kab, nRowSamples);
     std::cout << "Ka top left corner" << std::endl;
     std::cout << Ka.block<5, 5>(0, 0) << std::endl;
 
-    nystromApproximation(Ka, Kab);
-    sinkhorn(Ka, Kab);
+    Eigen::MatrixXd eigvals, phi;
+    std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
+    
+    Eigen::MatrixXd Wa, Wab;
+    std::tie(Wa, Wab) = sinkhorn(phi, eigvals);
 
     // orthogonalization(Wa, Wab, eigenVectors);
 
+    // TODO: Visualize top eigenvectors
+    
     // Now Wa = Ka, Wab = Kab
     // auto& Wa = Ka;
     // auto& Wab = Kab;
