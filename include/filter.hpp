@@ -183,20 +183,20 @@ void scaleEigenValues(const T& weights)
 }
 
 template <typename T>
-auto robustInvertDiagMatrix(const T& A, double eps=0.00001) {
-    Eigen::MatrixXd invMat = A;
-    for (int c = 0; c < A.cols(); c++) {
-        for (int r = 0; r < A.rows(); r++) {
-            if (A(r, c) < eps) {
+auto invertDiagMatrix(const T& mat, double eps=0.00001) {
+    Eigen::MatrixXd invMat = mat;
+    for (int c = 0; c < mat.cols(); c++) {
+        for (int r = 0; r < mat.rows(); r++) {
+            if (mat(r, c) < eps) {
                 invMat(r, c) = 0;
             }
             else {
-                invMat(r, c) = 1.0 / A(r, c);
+                invMat(r, c) = 1.0 / mat(r, c);
             }
         }
     }
 
-    return A.asDiagonal();
+    return mat.asDiagonal();
 }
 
 Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
@@ -209,7 +209,7 @@ Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
     // TODO: Check this. This results in a conversion to MatrixXd?
     Eigen::MatrixXd eigvals = es.eigenvalues().real();
     Eigen::MatrixXd eigvecs = es.eigenvectors().real();
-    auto invEigVals = robustInvertDiagMatrix(eigvals, eps);
+    auto invEigVals = invertDiagMatrix(eigvals, eps);
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
