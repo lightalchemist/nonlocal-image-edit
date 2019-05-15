@@ -187,7 +187,8 @@ auto invertDiagMatrix(const T& mat, double eps=0.00001) {
     Eigen::MatrixXd invMat = mat;
     for (int c = 0; c < mat.cols(); c++) {
         for (int r = 0; r < mat.rows(); r++) {
-            if (mat(r, c) < eps) {
+            if (std::abs(mat(r, c)) < eps) {
+                std::cout << "Small eigenvalue: " << mat(r, c) << " at (" << r << " , " << c << ")" << std::endl;
                 invMat(r, c) = 0;
             }
             else {
@@ -209,16 +210,19 @@ Eigen::MatrixXd nystromApproximation(const Eigen::MatrixXd& Ka,
     // TODO: Check this. This results in a conversion to MatrixXd?
     Eigen::MatrixXd eigvals = es.eigenvalues().real();
     Eigen::MatrixXd eigvecs = es.eigenvectors().real();
-    auto invEigVals = invertDiagMatrix(eigvals, eps);
+
+    std::cout << "Finished eigendecomposition" << std::endl;
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
     std::cout << "eigvecs shape: " << eigvecs.rows() << " x " << eigvecs.cols() << std::endl;
+    
+    auto invEigVals = invertDiagMatrix(eigvals, eps);
     std::cout << "invEigVals shape: " << invEigVals.rows() << " x " << invEigVals.cols() << std::endl;
     
     // Stack eigvecs at the top
     int p = Ka.rows();
-    int n = eigvecs.rows();
+    int n = p + Kab.cols();
     Eigen::MatrixXd phi(n, p);
     phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
 
@@ -238,25 +242,29 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
 
-    auto nrows = I.rows;
-    auto ncols = I.cols;
-    std::vector<int> selected, rest;
-    std::tie(selected, rest) = samplePixels(nrows, ncols, 10);
-    for (auto i : selected) {
-        int r, c;
-        std::tie(r, c) = to2DCoords(i, ncols);
-        cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
-    }
+    // auto nrows = I.rows;
+    // auto ncols = I.cols;
+    // std::vector<int> selected, rest;
+    // std::tie(selected, rest) = samplePixels(nrows, ncols, 10);
+    // for (auto i : selected) {
+    //     int r, c;
+    //     std::tie(r, c) = to2DCoords(i, ncols);
+    //     cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
+    // }
 
-    std::cout << "# selected: " << selected.size() << std::endl;
+    // std::cout << "# selected: " << selected.size() << std::endl;
 
-    cv::imshow("sampled", I);
-    cv::waitKey(-1);
+    // cv::imshow("sampled", I);
+    // cv::waitKey(-1);
     
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    // computeKernelWeights(L, Ka, Kab);
-    // nystromApproximation(Ka, Kab);
+    computeKernelWeights(L, Ka, Kab, 5);
+
+    std::cout << "Ka top left corner" << std::endl;
+    std::cout << Ka.block<5, 5>(0, 0) << std::endl;
+
+    nystromApproximation(Ka, Kab);
     // sinkhorn(Ka, Kab);
 
     // orthogonalization(Wa, Wab, eigenVectors);
