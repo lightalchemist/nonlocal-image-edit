@@ -310,12 +310,14 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     std::vector<int> pixelOrder;
     computeKernelWeights(L, Ka, Kab, pixelOrder, nRowSamples);
-    std::cout << "Ka top left corner" << std::endl;
-    std::cout << Ka.block<5, 5>(0, 0) << std::endl;
+    // std::cout << "Ka top left corner" << std::endl;
+    // std::cout << Ka.block<5, 5>(0, 0) << std::endl;
 
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
 
+    // Eigen::VectorXd v = phi.col(0);
+    // sortVector(v, pixelOrder);
 
 
     // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
