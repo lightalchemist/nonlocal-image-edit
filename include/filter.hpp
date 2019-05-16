@@ -100,6 +100,7 @@ auto samplePixels(unsigned int nrows, unsigned int ncols, unsigned int nRowSampl
 void computeKernelWeights(const cv::Mat& I,
                           Eigen::MatrixXd& Ka,
                           Eigen::MatrixXd& Kab,
+                          std::vector<int>& pixelOrder,
                           int nRowSamples = 10)
 {
     auto nrows = I.rows, ncols = I.cols;
@@ -109,6 +110,10 @@ void computeKernelWeights(const cv::Mat& I,
     std::vector<int> selected, rest;
     std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples);
     int nSamples = selected.size();
+
+    pixelOrder.reserve(nPixels);
+    pixelOrder.insert(pixelOrder.end(), selected.begin(), selected.end());
+    pixelOrder.insert(pixelOrder.end(), rest.begin(), rest.end());
 
     Ka.resize(nSamples, nSamples);
     Kab.resize(nSamples, nPixels - nSamples);
@@ -174,19 +179,27 @@ void computeKernelWeights(const cv::Mat& I,
 
 
 
-auto sinkhorn(const Eigen::MatrixXd& phi, const Eigen::MatrixXd& eigvals, int maxIter=20)
+auto sinkhornKnopp(const Eigen::MatrixXd& phi, const Eigen::MatrixXd& eigvals, int maxIter=20,
+              double eps=0.00001)
 {
    int n = phi.rows();
-   auto r = Eigen::ArrayXXf::Ones(n, 1);
+   // auto r = Eigen::ArrayXXd::Ones(n, 1);
+   auto r = Eigen::MatrixXd::Ones(n, 1);
    std::cout << "r rows: " << r.rows() << " cols: " << r.cols() << std::endl;
 
+   auto c = phi * (eigvals.array() * (phi.transpose() * r).array()).matrix();
+   // reciprocal(c, eps);
    for (int i = 0; i < maxIter; i++) {
 
    }
 
-    Eigen::MatrixXd Wa, Wab;
+   std::cout << "Allocating Wa Wab" << std::endl;
+   Eigen::MatrixXd Wa, Wab;
+   std::cout << "Allocated Wa Wab" << std::endl;
+
+
     
-    return std::tie(Wa, Wab);
+   return std::tie(Wa, Wab);
 }
 
 //template <typename T>
@@ -212,14 +225,21 @@ auto invertDiagMatrix(const T& mat, double eps=0.00001) {
     return mat.asDiagonal();
 }
 
-auto robustReciprocal(const T& mat, double eps=0.00001) {
-    
-}
 
-auto robustReciprocal(T& mat, double eps=0.00001) {
+// template <T>
+// void reciprocal(T& mat, double eps) {
+//     // Iterate over each element and take reciprocal
+//
+// }
+
+// auto robustReciprocal(const T& mat, double eps=0.00001) {
+    
+// }
+
+// auto robustReciprocal(T& mat, double eps=0.00001) {
     
     
-}
+// }
 
 auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
                           double eps=0.00001) {
@@ -263,6 +283,10 @@ void plotSampledPoints(cv::Mat& I, int nSamples) {
     std::cout << "# selected: " << selected.size() << std::endl;
 }
 
+void sortVector(Eigen::VectorXd& v, std::vector<int>& order) {
+
+}
+
 template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 {
@@ -283,20 +307,28 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
     unsigned int nRowSamples = 7;
-    computeKernelWeights(L, Ka, Kab, nRowSamples);
+
+    std::vector<int> pixelOrder;
+    computeKernelWeights(L, Ka, Kab, pixelOrder, nRowSamples);
     std::cout << "Ka top left corner" << std::endl;
     std::cout << Ka.block<5, 5>(0, 0) << std::endl;
 
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
-    
-    Eigen::MatrixXd Wa, Wab;
-    std::tie(Wa, Wab) = sinkhorn(phi, eigvals);
+
+
+
+    // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
+
+
+
+    // Eigen::MatrixXd Wa, Wab;
+    // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals);
 
     // orthogonalization(Wa, Wab, eigenVectors);
 
     // TODO: Visualize top eigenvectors
-    
+
     // Now Wa = Ka, Wab = Kab
     // auto& Wa = Ka;
     // auto& Wab = Kab;
