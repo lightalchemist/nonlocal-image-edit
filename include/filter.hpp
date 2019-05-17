@@ -216,10 +216,8 @@ sinkhornKnopp(const Eigen::MatrixXd& phi,
         Waab.row(i) = r(i) * (eigvals.transpose().array() * phi.row(i).array()).matrix() * tmp;
     }
 
-    std::cout << "Allocating Wa Wab" << std::endl;
-    Eigen::MatrixXd Wa = Waab.leftCols(p), Wab = Waab.rightCols(n - p);
-    std::cout << "Allocated Wa Wab" << std::endl;
-
+    Eigen::MatrixXd Wa = Waab.leftCols(p);
+    Eigen::MatrixXd Wab = Waab.rightCols(n - p);
     assert(Wa.cols() + Wab.cols() == n);
 
     return std::make_pair(Wa, Wab);
@@ -241,6 +239,9 @@ invertDiagMatrix(const Eigen::MatrixXd& mat, double eps = 0.00001)
             }
         }
     }
+
+    // return std::make_pair(invMat.topLeftCorner(numNonZero, numNonZero).asDiagonal(),
+    //                       numNonZero);
 
     return std::make_pair(invMat.asDiagonal(), numNonZero);
 }
@@ -291,6 +292,8 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
     std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
     std::cout << "# non-zero eigenvalues: " << numNonZero << std::endl;
+
+    // assert (numNonZero == invEigVals.size());
 
     // invEigVals.resize(numNonZero);
     // int p = numNonZero;
@@ -354,6 +357,11 @@ cv::Mat rescaleForVisualization(const cv::Mat& mat) {
     return rescaledMat;
 }
 
+
+void orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab) {
+
+}
+
 template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 {
@@ -380,27 +388,24 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     std::vector<int> pixelOrder;
     computeKernelWeights(L, Ka, Kab, pixelOrder, nRowSamples);
 
-    std::cout << "Ka top corner: " << std::endl;
-    std::cout << Ka.topLeftCorner(5, 5) << std::endl;
-
-    std::cout << "Ka bottom corner: " << std::endl;
-    std::cout Ka.bottomRightCorner(5, 5) << std::endl;
-
-    std::cout << "Kab top corner: " << Kab.topLeftCorner(5, 5) << std::endl;
-    std::cout << "Kab bottom corner: " << Kab.bottomRightCorner(5, 5) << std::endl;
-
-
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
 
-    std::cout << "eigvals # rows: " << eigvals.rows() << " # cols: " << eigvals.cols() << std::endl;
+    // std::cout << "Ka top corner: " << std::endl;
+    // std::cout << Ka.topLeftCorner(5, 5) << std::endl;
+    // std::cout << "Ka bottom corner: " << std::endl;
+    // std::cout Ka.bottomRightCorner(5, 5) << std::endl;
+    // std::cout << "Kab top corner: " << std::endl;
+    // std::cout << Kab.topLeftCorner(5, 5) << std::endl;
+    // std::cout << "Kab bottom corner: " << std::endl; 
+    // std::cout << Kab.bottomRightCorner(5, 5) << std::endl;
 
-    std::cout << "eigvals head" << std::endl;
-    std::cout << eigvals.topRows(10) << std::endl;
-
-    std::cout << "----------" << std::endl;
-    std::cout << "eigvals tail" << std::endl;
-    std::cout << eigvals.bottomRows(20) << std::endl;
+    // std::cout << "eigvals # rows: " << eigvals.rows() << " # cols: " << eigvals.cols() << std::endl;
+    // std::cout << "eigvals head" << std::endl;
+    // std::cout << eigvals.topRows(10) << std::endl;
+    // std::cout << "----------" << std::endl;
+    // std::cout << "eigvals tail" << std::endl;
+    // std::cout << eigvals.bottomRows(20) << std::endl;
 
     for (int j = 0; j < eigvals.cols(); j++) {
         for (int i = 0; i < eigvals.rows(); i++) {
@@ -428,19 +433,24 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     //     }
     // }
 
-    // Eigen::MatrixXd Wa, Wab;
-    // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 30);
-    // if (Wa.isApprox(Wa.transpose())) {
-    //     std::cout << "Wa is symmetric" << std::endl;
-    // }
-    // else {
-    //     std::cout << "Wa is NOT symmetric" << std::endl;
-    // }
+    Eigen::MatrixXd Wa, Wab;
+    std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 10);
+    if (Wa.isApprox(Wa.transpose())) {
+        std::cout << "Wa is symmetric" << std::endl;
+    }
+    else {
+        std::cout << "Wa is NOT symmetric" << std::endl;
+    }
+
+    // Eigen::MatrixXd tmp(Wa.rows(), Wa.cols() + Wab.cols());
+    // tmp << Wa, Wab;
+    // std::cout << tmp.rowwise().sum() << std::endl;
+
+    // orthogonalization(Wa, Wab, eigenVectors);
 
     // std::cout << "Wa top left corner:" << std::endl;
     // std::cout << Wa.topLeftCorner(5, 5) << std::endl;
 
-    // orthogonalization(Wa, Wab, eigenVectors);
 
     // TODO: Visualize top eigenvectors
 
