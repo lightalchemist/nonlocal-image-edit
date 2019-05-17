@@ -105,7 +105,7 @@ void computeKernelWeights(const cv::Mat& I,
                           std::vector<int>& pixelOrder,
                           int nRowSamples = 10)
 {
-    auto nrows = I.rows, ncols = I.cols;
+    int nrows = I.rows, ncols = I.cols;
     int nPixels = I.total();
     assert(nPixels == nrows * ncols);
 
@@ -174,23 +174,55 @@ void computeKernelWeights(const cv::Mat& I,
     }
 }
 
-auto sinkhornKnopp(const Eigen::MatrixXd& phi, const Eigen::MatrixXd& eigvals, int maxIter = 20,
-                   double eps = 0.00001)
+void reciprocal(Eigen::MatrixXd& mat, double eps=0.00001) {
+    for (int i = 0; i < mat.rows(); i++) {
+        for (int j = 0; j < mat.cols(); j++) {
+            if (std::abs(mat(i, j)) >= eps) {
+                mat(i, j) = 1 / mat(i, j);
+            }
+            else {
+                mat(i, j) = 0;
+            }
+        }
+    }
+}
+
+std::pair<Eigen::MatrixXd, Eigen::MatrixXd> 
+sinkhornKnopp(const Eigen::MatrixXd& phi,
+              const Eigen::MatrixXd& eigvals,
+              int maxIter = 20,  double eps = 0.00001)
 {
     // TODO: Debug this by testing on small, almost symmetric, matrices.
 
     int n = phi.rows();
-    auto r = Eigen::MatrixXd::Ones(n, 1);
-    auto c = phi * (eigvals.array() * (phi.transpose() * r).array()).matrix();
-    // reciprocal(c, eps);
+    Eigen::MatrixXd r = Eigen::VectorXd::Ones(n, 1);
+    Eigen::MatrixXd c; 
+
     for (int i = 0; i < maxIter; i++) {
+        c = phi * (eigvals.array() * (phi.transpose() * r).array()).matrix();
+        reciprocal(c, eps);
+
+        assert(c.rows() == phi.rows());
+
+        r = phi * (eigvals.array() * (phi.transpose() * c).array()).matrix();
+        reciprocal(r, eps);
+
+    }
+
+    int p = phi.cols();
+    Eigen::MatrixXd Waab(p, n);
+    Eigen::MatrixXd tmp = (c.replicate(1, p).array() * phi.array()).matrix().transpose();
+    for (int i = 0; i < p; i++) {
+        Waab.row(i) = r(i) * (eigvals.transpose().array() * phi.row(i).array()).matrix() * tmp;
     }
 
     std::cout << "Allocating Wa Wab" << std::endl;
-    Eigen::MatrixXd Wa, Wab;
+    Eigen::MatrixXd Wa = Waab.leftCols(p), Wab = Waab.rightCols(n - p);
     std::cout << "Allocated Wa Wab" << std::endl;
 
-    return std::tie(Wa, Wab);
+    assert(Wa.cols() + Wab.cols() == n);
+
+    return std::make_pair(Wa, Wab);
 }
 
 std::pair<Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic>, int> 
@@ -231,12 +263,25 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
                           double eps = 0.00001)
 {
 
-    // Eigendecomposition of Ka
-    Eigen::EigenSolver<Eigen::MatrixXd> es(Ka);
+    if (Ka.isApprox(Ka.transpose())) {
+        std::cout << "Ka is symmetric" << std::endl;
+    }
+    else {
+        std::cout << "Ka is NOT symmetric" << std::endl;
+    }
+    std::cout << "Ka rows: " << Ka.rows() << " x " << Ka.cols() << std::endl;
 
-    // TODO: Check this. This results in a conversion to MatrixXd?
-    Eigen::MatrixXd eigvals = es.eigenvalues().real();
-    Eigen::MatrixXd eigvecs = es.eigenvectors().real();
+    // Eigendecomposition of Ka
+    // Eigen::EigenSolver<Eigen::MatrixXd> es(Ka);
+    // // TODO: Check this. This results in a conversion to MatrixXd?
+    // Eigen::MatrixXd eigvals = es.eigenvalues().real();
+    // Eigen::MatrixXd eigvecs = es.eigenvectors().real();
+
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es;
+    es.compute(Ka);
+    Eigen::MatrixXd eigvals = es.eigenvalues();
+    Eigen::MatrixXd eigvecs = es.eigenvectors();
+
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
@@ -246,6 +291,14 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
     std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
     std::cout << "# non-zero eigenvalues: " << numNonZero << std::endl;
+
+    // invEigVals.resize(numNonZero);
+    // int p = numNonZero;
+    // int n = Ka.cols() + Kab.cols();
+    // Eigen::MatrixXd phi(n, p);
+    // phi << eigvecs.leftCols(numNonZero).eval(), (Kab.topRows(numNonZero).transpose() * 
+    //                                       eigvecs.leftCols(numNonZero) * 
+    //                                       invEigVals);
 
     // Stack eigvecs at the top
     int p = Ka.rows();
@@ -258,11 +311,11 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
 
 void plotSampledPoints(cv::Mat& I, int nSamples)
 {
-    auto nrows = I.rows;
-    auto ncols = I.cols;
+    int nrows = I.rows;
+    int ncols = I.cols;
     std::vector<int> selected, rest;
     std::tie(selected, rest) = samplePixels(nrows, ncols, nSamples);
-    for (auto i : selected) {
+    for (int i : selected) {
         int r, c;
         std::tie(r, c) = to2DCoords(i, ncols);
         cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
@@ -326,14 +379,39 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     std::vector<int> pixelOrder;
     computeKernelWeights(L, Ka, Kab, pixelOrder, nRowSamples);
-    // std::cout << "Ka top left corner" << std::endl;
-    // std::cout << Ka.block<5, 5>(0, 0) << std::endl;
+
+    std::cout << "Ka top corner: " << std::endl;
+    std::cout << Ka.topLeftCorner(5, 5) << std::endl;
+
+    std::cout << "Ka bottom corner: " << std::endl;
+    std::cout Ka.bottomRightCorner(5, 5) << std::endl;
+
+    std::cout << "Kab top corner: " << Kab.topLeftCorner(5, 5) << std::endl;
+    std::cout << "Kab bottom corner: " << Kab.bottomRightCorner(5, 5) << std::endl;
+
 
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
 
+    std::cout << "eigvals # rows: " << eigvals.rows() << " # cols: " << eigvals.cols() << std::endl;
+
+    std::cout << "eigvals head" << std::endl;
+    std::cout << eigvals.topRows(10) << std::endl;
+
+    std::cout << "----------" << std::endl;
+    std::cout << "eigvals tail" << std::endl;
+    std::cout << eigvals.bottomRows(20) << std::endl;
+
+    for (int j = 0; j < eigvals.cols(); j++) {
+        for (int i = 0; i < eigvals.rows(); i++) {
+            if (eigvals(i, j) < 0) {
+                std::cout << i << ", " << j << " -ve eigenvalue: " << eigvals(i, j) << std::endl;
+            }
+        }
+    }
+
     // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
-    Eigen::VectorXd v = sortVector(phi.col(2), pixelOrder);
+    Eigen::VectorXd v = sortVector(phi.rightCols(1), pixelOrder);
     std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
     cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
     ev0 = rescaleForVisualization(ev0);
@@ -341,9 +419,26 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     cv::imshow("ev", ev0);
     cv::waitKey(-1);
 
+    // std::cout << "Negative entries in phi" << std::endl;
+    // for (int r = 0; r < phi.rows(); r++) {
+    //     for (int c = 0; c < phi.cols(); c++) {
+    //         if (phi(r, c) < 0) {
+    //             std::cout << phi(r, c) << " at (" << r << ", " << c << ")" << std::endl;
+    //         }
+    //     }
+    // }
 
     // Eigen::MatrixXd Wa, Wab;
-    // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals);
+    // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 30);
+    // if (Wa.isApprox(Wa.transpose())) {
+    //     std::cout << "Wa is symmetric" << std::endl;
+    // }
+    // else {
+    //     std::cout << "Wa is NOT symmetric" << std::endl;
+    // }
+
+    // std::cout << "Wa top left corner:" << std::endl;
+    // std::cout << Wa.topLeftCorner(5, 5) << std::endl;
 
     // orthogonalization(Wa, Wab, eigenVectors);
 
