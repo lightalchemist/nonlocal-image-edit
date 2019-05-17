@@ -278,6 +278,7 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     // Eigen::MatrixXd eigvals = es.eigenvalues().real();
     // Eigen::MatrixXd eigvecs = es.eigenvectors().real();
 
+    // NOTE: right most vectors are the eigenvectors with largest eigenvalues
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es;
     es.compute(Ka);
     Eigen::MatrixXd eigvals = es.eigenvalues();
@@ -358,8 +359,43 @@ cv::Mat rescaleForVisualization(const cv::Mat& mat) {
 }
 
 
-void orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab) {
+auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=0.00001) {
 
+    Eigen::EigenSolver<Eigen::MatrixXd> es(Wa);
+
+    // TODO: Check this. This results in a conversion to MatrixXd?
+    Eigen::MatrixXd eigvals = es.eigenvalues().real();
+    Eigen::MatrixXd eigvecs = es.eigenvectors().real();
+
+    eigvals = eigvals.cwiseSqrt();
+
+    Eigen::MatrixXd invRootEigVals = eigvals;
+    reciprocal(invRootEigVals, eps);
+
+    Eigen::MatrixXd invRootWa = eigvecs * invRootEigVals.asDiagonal();
+
+    // TODO: Q is suppose to be symmetric because Wa is suppose to be symmetric
+    Eigen::MatrixXd Q = Wa + invRootWa * Wab * Wab.transpose() * invRootWa;
+
+    es.compute(Q);
+    Eigen::MatrixXd Sq = es.eigenvalues().real();
+    Eigen::MatrixXd Vq = es.eigenvectors().real();
+
+    Eigen::MatrixXd invRootSq = Sq;
+    reciprocal(invRootSq, eps);
+
+    Eigen::MatrixXd tmp(Wa.rows() + Wab.cols(), Wa.cols());
+    tmp << Wa, Wab.transpose();
+    Eigen::MatrixXd V = tmp * invRootWa * Vq * invRootSq.asDiagonal();
+
+    if (Q.isApprox(Q.transpose())) {
+        std::cout << "Q is symmetric" << std::endl;
+    }
+    else {
+        std::cout << "Q is NOT symmetric" << std::endl;
+    }
+
+    return std::make_pair(V, Sq);
 }
 
 template <typename T>
@@ -407,22 +443,22 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // std::cout << "eigvals tail" << std::endl;
     // std::cout << eigvals.bottomRows(20) << std::endl;
 
-    for (int j = 0; j < eigvals.cols(); j++) {
-        for (int i = 0; i < eigvals.rows(); i++) {
-            if (eigvals(i, j) < 0) {
-                std::cout << i << ", " << j << " -ve eigenvalue: " << eigvals(i, j) << std::endl;
-            }
-        }
-    }
+    // for (int j = 0; j < eigvals.cols(); j++) {
+    //     for (int i = 0; i < eigvals.rows(); i++) {
+    //         if (eigvals(i, j) < 0) {
+    //             std::cout << i << ", " << j << " -ve eigenvalue: " << eigvals(i, j) << std::endl;
+    //         }
+    //     }
+    // }
 
     // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
-    Eigen::VectorXd v = sortVector(phi.rightCols(1), pixelOrder);
-    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
-    cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
-    ev0 = rescaleForVisualization(ev0);
-    ev0.convertTo(ev0, CV_8U);
-    cv::imshow("ev", ev0);
-    cv::waitKey(-1);
+    // Eigen::VectorXd v = sortVector(phi.rightCols(1), pixelOrder);
+    // std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    // cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
+    // ev0 = rescaleForVisualization(ev0);
+    // ev0.convertTo(ev0, CV_8U);
+    // cv::imshow("ev", ev0);
+    // cv::waitKey(-1);
 
     // std::cout << "Negative entries in phi" << std::endl;
     // for (int r = 0; r < phi.rows(); r++) {
@@ -434,7 +470,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // }
 
     Eigen::MatrixXd Wa, Wab;
-    std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 10);
+    std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 20);
     if (Wa.isApprox(Wa.transpose())) {
         std::cout << "Wa is symmetric" << std::endl;
     }
@@ -446,7 +482,44 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // tmp << Wa, Wab;
     // std::cout << tmp.rowwise().sum() << std::endl;
 
-    // orthogonalization(Wa, Wab, eigenVectors);
+    std::cout << "Orthogonalize" << std::endl;
+    Eigen::MatrixXd V, S;
+    std::tie(V, S) = orthogonalize(Wa, Wab);
+
+    std::cout << "S top k" << std::endl;
+    std::cout << S.topRows(10) << std::endl;
+
+    std::cout << "S bottom k" << std::endl;
+    std::cout << S.bottomRows(10) << std::endl;
+
+    Eigen::VectorXd v = sortVector(V.rightCols(1), pixelOrder);
+    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
+    ev0 = rescaleForVisualization(ev0);
+    ev0.convertTo(ev0, CV_8U);
+    cv::imshow("ev", ev0);
+
+
+    v = sortVector(V.leftCols(1), pixelOrder);
+    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    cv::Mat ev1 = eigen2opencv(v, L.rows, L.cols);
+    ev1 = rescaleForVisualization(ev1);
+    ev1.convertTo(ev1, CV_8U);
+    cv::imshow("ev1", ev1);
+
+
+    const int k = 7;
+    Eigen::VectorXd s = S.topRows(k).diagonal();
+    std::cout << "s shape: " << s.rows() << " x " << s.cols() << std::endl;
+    Eigen::VectorXd II = V.leftCols(k) * s;
+    std::cout << "Final min: " << II.minCoeff() << " max: " << II.maxCoeff() << std::endl;
+    std::cout << "II shape: " << II.rows() << " x " << II.cols() << std::endl;
+    cv::Mat edited = eigen2opencv(II, L.rows, L.cols);
+    edited = rescaleForVisualization(edited);
+    edited.convertTo(edited, CV_8U);
+    cv::imshow("Edited", edited);
+
+    cv::waitKey(-1);
 
     // std::cout << "Wa top left corner:" << std::endl;
     // std::cout << Wa.topLeftCorner(5, 5) << std::endl;
