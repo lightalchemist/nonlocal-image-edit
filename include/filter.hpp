@@ -332,19 +332,15 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
 
+    // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
     Eigen::VectorXd v = sortVector(phi.col(2), pixelOrder);
     std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
-
     cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
     ev0 = rescaleForVisualization(ev0);
     ev0.convertTo(ev0, CV_8U);
-
-    // cv::Mat ev1 = (ev0 - v.minCoeff()) / (v.maxCoeff() - v.minCoeff()) * 255.0;
-    // ev1.convertTo(ev1, CV_8U);
     cv::imshow("ev", ev0);
     cv::waitKey(-1);
 
-    // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
 
     // Eigen::MatrixXd Wa, Wab;
     // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals);
