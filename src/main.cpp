@@ -23,12 +23,6 @@ int main(int argc, char* argv[])
         weights.push_back(std::stod(argv[3 + i]));
     }
 
-    std::cout << "Weights: ";
-    for (const auto& w : weights) {
-        std::cout << w << " ";
-    }
-    std::cout << std::endl;
-
     cv::Mat image = cv::imread(imagePath);
     if (image.empty()) {
         std::cerr << "Failed to read file from " << imagePath << std::endl;
@@ -36,11 +30,7 @@ int main(int argc, char* argv[])
     }
 
     std::cout << image.size() << std::endl;
-    
-    std::cout << "Size: " << image.size() << std::endl;
-    std::cout << "# elements: " << image.size().width * image.size().height << std::endl;
-    std::cout << "# elements: " << image.total() << std::endl;
-    
+
 //    cv::imshow("original", image);
 //    cv::waitKey(0);
 
