@@ -19,7 +19,8 @@
 #include <Eigen/Eigenvalues>
 
 
-const double EPS = 1e-19;
+// const double EPS = 1e-19;
+const double EPS = 1e-20;
 
 double kernel(const cv::Mat& I,
               int r1, int c1, int r2, int c2,
@@ -70,8 +71,8 @@ auto samplePixels(int nrows, int ncols, int nRowSamples)
 
     int rowStep = nrows / (nRowSamples);
     int colStep = ncols / (nColSamples);
-    int rOffset = (rowStep + (nrows - nRowSamples * rowStep)) / 2;
-    int cOffset = (colStep + (ncols - nColSamples * colStep)) / 2;
+    int rOffset = (nrows - nRowSamples * rowStep) / 2;
+    int cOffset = (ncols - nColSamples * colStep) / 2;
 
     std::cout << "# row samples: " << nRowSamples << " # col samples: " << nColSamples << std::endl;
 
@@ -97,8 +98,8 @@ Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic>
 computeKernelWeights(const cv::Mat& I,
                      Eigen::MatrixXd& Ka,
                      Eigen::MatrixXd& Kab,
-                     // std::vector<int>& pixelOrder,
-                     int nRowSamples = 10)
+                     int nRowSamples,
+                     double hy)
 {
     int nrows = I.rows, ncols = I.cols;
     int nPixels = I.total();
@@ -117,13 +118,10 @@ computeKernelWeights(const cv::Mat& I,
 
     // TODO: Tune this
     // double variance = estimateVariance(I);
-    double variance = 1000;
-    double gammaIntensity = 1.0 / variance;
+    // double variance = 1000;
+    std::cout << "hy: " << hy << std::endl;
+    double gammaIntensity = 1.0 / (hy * hy);
     double gammaSpatial = 0; // 1.0 / 10;
-
-    // This is row vector
-    // cv::Mat II = I.reshape(0, 1);
-    // std::cout << "II shape: " << II.size() << std::endl;
 
     // Compute Ka
     int r1, c1, r2, c2;
@@ -131,7 +129,6 @@ computeKernelWeights(const cv::Mat& I,
         std::tie(r1, c1) = to2DCoords(selected[i], ncols);
         for (auto j = i; j < selected.size(); ++j) {
             std::tie(r2, c2) = to2DCoords(selected[j], ncols);
-            // auto val = kernel(II, selected[i], selected[j], r1, c1, r2, c2, gammaSpatial, gammaIntensity);
             auto val = kernel(I, r1, c1, r2, c2, gammaSpatial, gammaIntensity);
             Ka(i, j) = val;
             Ka(j, i) = val;
@@ -139,7 +136,6 @@ computeKernelWeights(const cv::Mat& I,
 
         for (auto j = 0u; j < rest.size(); j++) {
             std::tie(r2, c2) = to2DCoords(rest[j], ncols);
-            // Kab(i, j) = kernel(II, selected[i], rest[j], r1, c1, r2, c2, gammaSpatial, gammaIntensity);
             Kab(i, j) = kernel(I, r1, c1, r2, c2, gammaSpatial, gammaIntensity);
         }
     }
@@ -164,7 +160,6 @@ computeKernelWeights(const cv::Mat& I,
     }
 
     // Check that Ka is symmetric
-    std::cout << "Ka rows: " << Ka.rows() << " x " << Ka.cols() << std::endl;
     assert(Ka.isApprox(Ka.transpose()));
     if (Ka.isApprox(Ka.transpose())) {
         std::cout << "Ka is symmetric" << std::endl;
@@ -446,11 +441,11 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
 }
 
 template <typename T>
-cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
+cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hy)
 {
     cv::Mat Ilab;
-    cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
-    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YUV);
+    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
+    cv::cvtColor(I, Ilab, cv::COLOR_BGR2YUV);
     // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
     std::vector<cv::Mat> channels;
     cv::split(Ilab, channels);
@@ -468,22 +463,20 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
         }
     }
 
-    // plotSampledPoints(I.clone(), 10);
-    // cv::imshow("sampled", I);
-    // cv::waitKey(-1);
 
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    int nRowSamples = 20;
 
-    // std::vector<int> pixelOrder;
-    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples);
+    cv::Mat tmpI = I.clone();
+    plotSampledPoints(tmpI, nRowSamples);
+    cv::imshow("sampled", tmpI);
+    // cv::waitKey(-1);
+    // return cv::Mat();
+
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples, hy);
 
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
-
-    // Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> d = eigvals.asDiagonal();
-    // std::cout << "d shape: " << d.rows() << " x " << d.cols() << std::endl;
 
     std::cout << "Top 5 Eigenvalue: " << std::endl;
     std::cout << eigvals.topRows(5) << std::endl;
@@ -525,7 +518,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     // Permute eigenvector entries back to the same order as the original image.
     V = P * V;
-    const int K = V.cols();
+    const int K = 10; // V.cols();
     for (int i = 0; i < V.cols() && i < K; i++) {
         Eigen::VectorXd v = V.col(i);
         std::cout << "eigenvector " << i << " min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
