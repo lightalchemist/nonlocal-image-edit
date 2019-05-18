@@ -10,12 +10,14 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+// #include <opencv2/core/eigen.hpp>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
 // #include <Eigen/IterativeLinearSolvers>
 // #include <Eigen/Sparse>
 #include <Eigen/Eigenvalues>
+
 
 const double EPS = 0.000001;
 
@@ -99,11 +101,12 @@ auto samplePixels(int nrows, int ncols, int nRowSamples)
     return std::make_pair(selected, rest);
 }
 
-void computeKernelWeights(const cv::Mat& I,
-                          Eigen::MatrixXd& Ka,
-                          Eigen::MatrixXd& Kab,
-                          std::vector<int>& pixelOrder,
-                          int nRowSamples = 10)
+Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic>
+computeKernelWeights(const cv::Mat& I,
+                     Eigen::MatrixXd& Ka,
+                     Eigen::MatrixXd& Kab,
+                     // std::vector<int>& pixelOrder,
+                     int nRowSamples = 10)
 {
     int nrows = I.rows, ncols = I.cols;
     int nPixels = I.total();
@@ -113,9 +116,6 @@ void computeKernelWeights(const cv::Mat& I,
     std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples);
     int nSamples = selected.size();
 
-    pixelOrder.reserve(nPixels);
-    pixelOrder.insert(pixelOrder.end(), selected.begin(), selected.end());
-    pixelOrder.insert(pixelOrder.end(), rest.begin(), rest.end());
 
     Ka.resize(nSamples, nSamples);
     Kab.resize(nSamples, nPixels - nSamples);
@@ -190,6 +190,24 @@ void computeKernelWeights(const cv::Mat& I,
     //                            gammaSpatial, gammaIntensity);
     //     }
     // }
+
+
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(nPixels);
+    int i = 0;
+    for (; i < selected.size(); ++i) {
+        P.indices()[i] = selected[i];
+    }
+    for (int j = 0; j < rest.size(); ++i, ++j) {
+        P.indices()[i] = rest[j];
+    }
+
+    return P;
+
+    // pixelOrder.reserve(nPixels);
+    // pixelOrder.insert(pixelOrder.end(), selected.begin(), selected.end());
+    // pixelOrder.insert(pixelOrder.end(), rest.begin(), rest.end());
+
+
 }
 
 void reciprocal(Eigen::MatrixXd& mat, double eps=EPS) {
@@ -300,18 +318,10 @@ auto eigenFactorize(const Eigen::MatrixXd& A, double eps=EPS) {
         }
     }
 
-    // for (int j = 0; j < U.cols(); j++) {
-    //     for (int i = 0; i < U.rows(); i++) {
-    //         if (U(i, j) < 0) {
-    //             std::cout << "-ve eigenvector value: " << U(i, j) << " at " << i << ", " << j << std::endl;
-    //         }
-    //     }
-    // }
-
-    Eigen::MatrixXd I = V.transpose() * U;
+    // Eigen::MatrixXd I = V.transpose() * U;
     // assert(I.isIdentity(eps));
-    std::cout << "I: " << std::endl;
-    std::cout << I.topLeftCorner(5, 5) << std::endl;
+    // std::cout << "I: " << std::endl;
+    // std::cout << I.topLeftCorner(5, 5) << std::endl;
 
     return std::make_pair(U, D);
 }
@@ -377,7 +387,7 @@ cv::Mat eigen2opencv(Eigen::VectorXd& v, int nrows, int ncols) {
     return X;
 }
 
-Eigen::VectorXd sortVector(const Eigen::VectorXd& v, std::vector<int>& order)
+Eigen::VectorXd backwardPermute(const Eigen::VectorXd& v, std::vector<int>& order)
 {
     Eigen::VectorXd sortedVec(v.size());
 
@@ -409,10 +419,10 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
     Eigen::MatrixXd eigvals, eigvecs;
     std::tie(eigvecs, eigvals) = eigenFactorize(Wa, eps);
 
-    Eigen::MatrixXd invRootEigVals = eigvals.cwiseSqrt();
-    // eigvals = eigvals.cwiseSqrt();
-    // Eigen::MatrixXd invRootEigVals = eigvals;
+    // Eigen::MatrixXd invRootEigVals = eigvals.cwiseSqrt();
+    Eigen::MatrixXd invRootEigVals = eigvals;
     reciprocal(invRootEigVals, eps);
+    invRootEigVals = invRootEigVals.cwiseSqrt();
 
     Eigen::MatrixXd invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
 
@@ -422,8 +432,10 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
     Eigen::MatrixXd Sq, Vq;
     std::tie(Vq, Sq) = eigenFactorize(Q, eps);
 
-    Eigen::MatrixXd invRootSq = Sq.cwiseSqrt();
+    // Eigen::MatrixXd invRootSq = Sq.cwiseSqrt();
+    Eigen::MatrixXd invRootSq = Sq;
     reciprocal(invRootSq, eps);
+    invRootSq = invRootSq.cwiseSqrt();
 
     Eigen::MatrixXd tmp(Wa.rows() + Wab.cols(), Wa.cols());
     tmp << Wa, Wab.transpose();
@@ -472,8 +484,8 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     Eigen::MatrixXd Ka, Kab;
     int nRowSamples = 7;
 
-    std::vector<int> pixelOrder;
-    computeKernelWeights(L, Ka, Kab, pixelOrder, nRowSamples);
+    // std::vector<int> pixelOrder;
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples);
 
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
@@ -519,7 +531,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     Eigen::MatrixXd Wa, Wab;
     std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 20);
-    if (Wa.isApprox(Wa.transpose()), 0.000001) {
+    if (Wa.isApprox(Wa.transpose()), EPS) {
         std::cout << "Wa is symmetric" << std::endl;
     }
     else {
@@ -546,9 +558,16 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     std::cout << "Eigenvalues S" << std::endl;
     std::cout << S << std::endl;
 
+    // Matrix for permuting vector into the desired order
+    // Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(V.rows());
+    // for (int i = 0; i < pixelOrder.size(); ++i) {
+    //     P.indices()[i] = pixelOrder[i];
+    // }
+
+    V = P * V;
     const int K = V.cols();
     for (int i = 0; i < V.cols() && i < K; i++) {
-        Eigen::VectorXd v = sortVector(V.col(i), pixelOrder);
+        Eigen::VectorXd v = V.col(i);
         std::cout << "eigenvector " << i << " min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
         cv::Mat ev = eigen2opencv(v, L.rows, L.cols);
         ev = rescaleForVisualization(ev);
@@ -563,9 +582,24 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     else {
         std::cout << "V is not orthogonal" << std::endl;
         std::cout << "V^T * V" << std::endl;
+        std::cout << V.transpose() * V << std::endl;
     }
 
+    std::cout << "Row sum" << std::endl;
+    std::cout << (V.row(0) * S.asDiagonal() * V.transpose()).sum() << std::endl;
+    std::cout << (V.row(1) * S.asDiagonal() * V.transpose()).sum() << std::endl;
+    std::cout << (V.row(2) * S.asDiagonal() * V.transpose()).sum() << std::endl;
+    std::cout << (V.row(3) * S.asDiagonal() * V.transpose()).sum() << std::endl;
+
     cv::waitKey(-1);
+
+
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> intensityEmat(L.ptr<double>(), L.rows, L.cols);
+    // intensityEmat.resize(V.rows(), 1);
+
+    // V.transpose() * 
+    // Eigen::Map<MatrixXf, Eigen::Rowwise> intensity( L.data() ); 
+
 
     return cv::Mat();
 }
