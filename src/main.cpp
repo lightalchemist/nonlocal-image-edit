@@ -29,8 +29,6 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    std::cout << image.size() << std::endl;
-
 //    cv::imshow("original", image);
 //    cv::waitKey(0);
 

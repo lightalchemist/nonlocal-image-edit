@@ -18,25 +18,24 @@
 #include <Eigen/Eigenvalues>
 
 double kernel(const cv::Mat& I,
-              int r, int s,
+              // int r, int s,
               int r1, int c1, int r2, int c2,
               double spatialScale, double intensityScale)
 {
 
     // Ensure that I is 1 dimensional
-    assert(I.rows == 1);
+    // assert(I.rows == 1);
+    // double yr = I.at<double>(0, r);
+    // double ys = I.at<double>(0, s);
 
-    // return 1.0;
-
-    // auto yr = I.at<double>(r, 0);
-    // auto ys = I.at<double>(s, 0);
-    auto yr = I.at<double>(0, r);
-    auto ys = I.at<double>(0, s);
+    double yr = I.at<double>(r1, c1);
+    double ys = I.at<double>(r2, c2);
 
     // Add in spatial term
-    double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
+    // double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
     double squareIntensityDist = (yr - ys) * (yr - ys);
-    return std::exp(-spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
+    // return std::exp(-spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
+    return std::exp(- intensityScale * squareIntensityDist);
 }
 
 inline int to1DIndex(int row, int col, int ncols)
@@ -44,7 +43,7 @@ inline int to1DIndex(int row, int col, int ncols)
     return row * ncols + col;
 }
 
-inline auto to2DCoords(int index, int ncols)
+inline std::pair<int, int> to2DCoords(int index, int ncols)
 {
     return std::make_pair(index / ncols, index % ncols);
 }
@@ -77,7 +76,6 @@ auto samplePixels(int nrows, int ncols, int nRowSamples)
     int rOffset = (rowStep + (nrows - nRowSamples * rowStep)) / 2;
     int cOffset = (colStep + (ncols - nColSamples * colStep)) / 2;
 
-    std::cout << "sample pixel ratio: " << ratio << std::endl;
     std::cout << "# row samples: " << nRowSamples << " # col samples: " << nColSamples << std::endl;
 
     std::vector<int> selected;
@@ -130,19 +128,37 @@ void computeKernelWeights(const cv::Mat& I,
     double gammaSpatial = 0; // 1.0 / 10;
 
     // This is row vector
-    cv::Mat II = I.reshape(0, 1);
-    std::cout << "II shape: " << II.size() << std::endl;
+    // cv::Mat II = I.reshape(0, 1);
+    // std::cout << "II shape: " << II.size() << std::endl;
+
     // Compute Ka
     int r1, c1, r2, c2;
     for (auto i = 0u; i < selected.size(); ++i) {
-        std::tie(r1, c1) = to2DCoords(i, ncols);
-        for (auto j = 0u; j < selected.size(); ++j) {
-            std::tie(r2, c2) = to2DCoords(j, ncols);
-            Ka(i, j) = kernel(II, selected[i], selected[j],
-                              r1, c1, r2, c2,
-                              gammaSpatial, gammaIntensity);
+        std::tie(r1, c1) = to2DCoords(selected[i], ncols);
+        for (auto j = i; j < selected.size(); ++j) {
+            std::tie(r2, c2) = to2DCoords(selected[j], ncols);
+            // auto val = kernel(II, selected[i], selected[j], r1, c1, r2, c2, gammaSpatial, gammaIntensity);
+            auto val = kernel(I, r1, c1, r2, c2, gammaSpatial, gammaIntensity);
+            Ka(i, j) = val;
+            Ka(j, i) = val;
+        }
+
+        for (auto j = 0u; j < rest.size(); j++) {
+            std::tie(r2, c2) = to2DCoords(rest[j], ncols);
+            // Kab(i, j) = kernel(II, selected[i], rest[j], r1, c1, r2, c2, gammaSpatial, gammaIntensity);
+            Kab(i, j) = kernel(I, r1, c1, r2, c2, gammaSpatial, gammaIntensity);
         }
     }
+
+    // for (auto i = 0u; i < selected.size(); ++i) {
+    //     std::tie(r1, c1) = to2DCoords(i, ncols);
+    //     for (auto j = 0u; j < selected.size(); ++j) {
+    //         std::tie(r2, c2) = to2DCoords(j, ncols);
+    //         Ka(i, j) = kernel(II, selected[i], selected[j],
+    //                           r1, c1, r2, c2,
+    //                           gammaSpatial, gammaIntensity);
+    //     }
+    // }
 
     for (auto i = 0u; i < Ka.rows(); i++) {
         for (auto j = 0u; j < Ka.cols(); j++) {
@@ -154,24 +170,24 @@ void computeKernelWeights(const cv::Mat& I,
     }
 
     // Check that Ka is symmetric
+    std::cout << "Ka rows: " << Ka.rows() << " x " << Ka.cols() << std::endl;
     assert(Ka.isApprox(Ka.transpose()));
-
-    // Check that matrix is positive definite
-    // Eigen::LLT<Eigen::MatrixXd> lltOfMat(Ka.real()); // compute the Cholesky decomposition of A
-    // if(lltOfMat.info() == Eigen::NumericalIssue)
-    // {
-    //      std::runtime_error("Possibly non positive-semi definitie matrix!");
-    // }
-
-    for (auto i = 0u; i < selected.size(); i++) {
-        std::tie(r1, c1) = to2DCoords(i, ncols);
-        for (auto j = 0u; j < rest.size(); j++) {
-            std::tie(r2, c2) = to2DCoords(j, ncols);
-            Kab(i, j) = kernel(II, selected[i], rest[j],
-                               r1, c1, r2, c2,
-                               gammaSpatial, gammaIntensity);
-        }
+    if (Ka.isApprox(Ka.transpose())) {
+        std::cout << "Ka is symmetric" << std::endl;
     }
+    else {
+        std::cout << "Ka is NOT symmetric" << std::endl;
+    }
+
+    // for (auto i = 0u; i < selected.size(); i++) {
+    //     std::tie(r1, c1) = to2DCoords(i, ncols);
+    //     for (auto j = 0u; j < rest.size(); j++) {
+    //         std::tie(r2, c2) = to2DCoords(j, ncols);
+    //         Kab(i, j) = kernel(II, selected[i], rest[j],
+    //                            r1, c1, r2, c2,
+    //                            gammaSpatial, gammaIntensity);
+    //     }
+    // }
 }
 
 void reciprocal(Eigen::MatrixXd& mat, double eps=0.00001) {
@@ -231,7 +247,6 @@ invertDiagMatrix(const Eigen::MatrixXd& mat, double eps = 0.00001)
     for (int c = 0; c < mat.cols(); c++) {
         for (int r = 0; r < mat.rows(); r++) {
             if (std::abs(mat(r, c)) < eps) {
-                std::cout << "Small eigenvalue: " << mat(r, c) << " at (" << r << " , " << c << ")" << std::endl;
                 invMat(r, c) = 0;
             } else {
                 invMat(r, c) = 1.0 / mat(r, c);
@@ -260,17 +275,13 @@ invertDiagMatrix(const Eigen::MatrixXd& mat, double eps = 0.00001)
 
 // }
 
+void eigenFactorize(const Eigen::MatrixXd& A) {
+
+}
+
 auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
                           double eps = 0.00001)
 {
-
-    if (Ka.isApprox(Ka.transpose())) {
-        std::cout << "Ka is symmetric" << std::endl;
-    }
-    else {
-        std::cout << "Ka is NOT symmetric" << std::endl;
-    }
-    std::cout << "Ka rows: " << Ka.rows() << " x " << Ka.cols() << std::endl;
 
     // Eigendecomposition of Ka
     // Eigen::EigenSolver<Eigen::MatrixXd> es(Ka);
@@ -283,7 +294,6 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     es.compute(Ka);
     Eigen::MatrixXd eigvals = es.eigenvalues();
     Eigen::MatrixXd eigvecs = es.eigenvectors();
-
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
@@ -443,13 +453,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // std::cout << "eigvals tail" << std::endl;
     // std::cout << eigvals.bottomRows(20) << std::endl;
 
-    // for (int j = 0; j < eigvals.cols(); j++) {
-    //     for (int i = 0; i < eigvals.rows(); i++) {
-    //         if (eigvals(i, j) < 0) {
-    //             std::cout << i << ", " << j << " -ve eigenvalue: " << eigvals(i, j) << std::endl;
-    //         }
-    //     }
-    // }
+    for (int j = 0; j < eigvals.cols(); j++) {
+        for (int i = 0; i < eigvals.rows(); i++) {
+            if (eigvals(i, j) < 0) {
+                std::cout << i << ", " << j << " -ve eigenvalue: " << eigvals(i, j) << std::endl;
+            }
+        }
+    }
 
     // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
     // Eigen::VectorXd v = sortVector(phi.rightCols(1), pixelOrder);
@@ -469,82 +479,57 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     //     }
     // }
 
-    Eigen::MatrixXd Wa, Wab;
-    std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 20);
-    if (Wa.isApprox(Wa.transpose())) {
-        std::cout << "Wa is symmetric" << std::endl;
-    }
-    else {
-        std::cout << "Wa is NOT symmetric" << std::endl;
-    }
+    // Eigen::MatrixXd Wa, Wab;
+    // std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, 20);
+    // if (Wa.isApprox(Wa.transpose())) {
+    //     std::cout << "Wa is symmetric" << std::endl;
+    // }
+    // else {
+    //     std::cout << "Wa is NOT symmetric" << std::endl;
+    // }
 
     // Eigen::MatrixXd tmp(Wa.rows(), Wa.cols() + Wab.cols());
     // tmp << Wa, Wab;
     // std::cout << tmp.rowwise().sum() << std::endl;
 
-    std::cout << "Orthogonalize" << std::endl;
-    Eigen::MatrixXd V, S;
-    std::tie(V, S) = orthogonalize(Wa, Wab);
-
-    std::cout << "S top k" << std::endl;
-    std::cout << S.topRows(10) << std::endl;
-
-    std::cout << "S bottom k" << std::endl;
-    std::cout << S.bottomRows(10) << std::endl;
-
-    Eigen::VectorXd v = sortVector(V.rightCols(1), pixelOrder);
-    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
-    cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
-    ev0 = rescaleForVisualization(ev0);
-    ev0.convertTo(ev0, CV_8U);
-    cv::imshow("ev", ev0);
-
-
-    v = sortVector(V.leftCols(1), pixelOrder);
-    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
-    cv::Mat ev1 = eigen2opencv(v, L.rows, L.cols);
-    ev1 = rescaleForVisualization(ev1);
-    ev1.convertTo(ev1, CV_8U);
-    cv::imshow("ev1", ev1);
-
-
-    const int k = 7;
-    Eigen::VectorXd s = S.topRows(k).diagonal();
-    std::cout << "s shape: " << s.rows() << " x " << s.cols() << std::endl;
-    Eigen::VectorXd II = V.leftCols(k) * s;
-    std::cout << "Final min: " << II.minCoeff() << " max: " << II.maxCoeff() << std::endl;
-    std::cout << "II shape: " << II.rows() << " x " << II.cols() << std::endl;
-    cv::Mat edited = eigen2opencv(II, L.rows, L.cols);
-    edited = rescaleForVisualization(edited);
-    edited.convertTo(edited, CV_8U);
-    cv::imshow("Edited", edited);
-
-    cv::waitKey(-1);
-
-    // std::cout << "Wa top left corner:" << std::endl;
-    // std::cout << Wa.topLeftCorner(5, 5) << std::endl;
-
-
-    // TODO: Visualize top eigenvectors
-
-    // Now Wa = Ka, Wab = Kab
-    // auto& Wa = Ka;
-    // auto& Wab = Kab;
-    // auto invSqRootWa = invSqRoot(Wa);
-    // auto Q = Wa + invSqRootWa * Wab * Wab.transpose() * invSqRootWa;
-
-    // Eigendecompose Q
-
-    // Compute Vm from eigendecomposition result
-
-    // scale eigenvalues
-    // scaleEigenValues(/*eigenvalues ,*/ weights);
-
-    // Compute filter matrix W = Vm * f(Sm) * Vm^T
-
-    // Figure out how to use propagation mask
-    // Optionally compute mask
-    // Use Mask for propagating edits
+    // std::cout << "Orthogonalize" << std::endl;
+    // Eigen::MatrixXd V, S;
+    // std::tie(V, S) = orthogonalize(Wa, Wab);
+    //
+    // std::cout << "S top k" << std::endl;
+    // std::cout << S.topRows(10) << std::endl;
+    //
+    // std::cout << "S bottom k" << std::endl;
+    // std::cout << S.bottomRows(10) << std::endl;
+    //
+    // Eigen::VectorXd v = sortVector(V.rightCols(1), pixelOrder);
+    // std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    // cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
+    // ev0 = rescaleForVisualization(ev0);
+    // ev0.convertTo(ev0, CV_8U);
+    // cv::imshow("ev", ev0);
+    //
+    //
+    // v = sortVector(V.leftCols(1), pixelOrder);
+    // std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    // cv::Mat ev1 = eigen2opencv(v, L.rows, L.cols);
+    // ev1 = rescaleForVisualization(ev1);
+    // ev1.convertTo(ev1, CV_8U);
+    // cv::imshow("ev1", ev1);
+    //
+    //
+    // const int k = 7;
+    // Eigen::VectorXd s = S.topRows(k).diagonal();
+    // std::cout << "s shape: " << s.rows() << " x " << s.cols() << std::endl;
+    // Eigen::VectorXd II = V.leftCols(k) * s;
+    // std::cout << "Final min: " << II.minCoeff() << " max: " << II.maxCoeff() << std::endl;
+    // std::cout << "II shape: " << II.rows() << " x " << II.cols() << std::endl;
+    // cv::Mat edited = eigen2opencv(II, L.rows, L.cols);
+    // edited = rescaleForVisualization(edited);
+    // edited.convertTo(edited, CV_8U);
+    // cv::imshow("Edited", edited);
+    //
+    // cv::waitKey(-1);
 
     return cv::Mat();
 }
