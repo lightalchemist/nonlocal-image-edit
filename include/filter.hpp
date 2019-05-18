@@ -351,12 +351,16 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
     return std::make_pair(V, Sq);
 }
 
+Eigen::VectorXd constantEigenVector(int n) {
+    return Eigen::VectorXd::Ones(n, 1) / std::sqrt(n);
+}
+
 template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hy)
 {
     cv::Mat Ilab;
-    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
-    cv::cvtColor(I, Ilab, cv::COLOR_BGR2YUV);
+     cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
+//    cv::cvtColor(I, Ilab, cv::COLOR_BGR2YUV);
     // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
     std::vector<cv::Mat> channels;
     cv::split(Ilab, channels);
@@ -445,9 +449,14 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
             ++k;
         }
     }
-
     std::cout << "Original image " << " min: " << lv.minCoeff() << " max: " << lv.maxCoeff() << std::endl;
 
+    V.col(0) = constantEigenVector(V.rows());
+    S(0, 0) = 1;
+    
+    std::cout << "S:" << std::endl;
+    std::cout << S.topRows(4) << std::endl;
+    
     Eigen::VectorXd result = V * (S.asDiagonal() * V.transpose() * lv);
     std::cout << "edited image " << " min: " << result.minCoeff() << " max: " << result.maxCoeff() << std::endl;
     cv::Mat edited = eigen2opencv(result, L.rows, L.cols);
