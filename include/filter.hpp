@@ -19,7 +19,7 @@
 #include <Eigen/Eigenvalues>
 
 
-const double EPS = 1e-18;
+const double EPS = 1e-19;
 
 double kernel(const cv::Mat& I,
               int r1, int c1, int r2, int c2,
@@ -117,7 +117,7 @@ computeKernelWeights(const cv::Mat& I,
 
     // TODO: Tune this
     // double variance = estimateVariance(I);
-    double variance = 800;
+    double variance = 1000;
     double gammaIntensity = 1.0 / variance;
     double gammaSpatial = 0; // 1.0 / 10;
 
@@ -474,7 +474,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    int nRowSamples = 10;
+    int nRowSamples = 20;
 
     // std::vector<int> pixelOrder;
     Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples);
