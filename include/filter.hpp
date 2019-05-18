@@ -318,30 +318,26 @@ cv::Mat rescaleForVisualization(const cv::Mat& mat) {
 
 
 auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
-
-    // Eigen::EigenSolver<Eigen::MatrixXd> es(Wa);
-
-    // TODO: Check this. This results in a conversion to MatrixXd?
-    // Eigen::MatrixXd eigvals = es.eigenvalues().real();
-    // Eigen::MatrixXd eigvecs = es.eigenvectors().real();
-
     Eigen::MatrixXd eigvals, eigvecs;
     std::tie(eigvecs, eigvals) = eigenDecomposition(Wa, eps);
 
-    // Eigen::MatrixXd invRootEigVals = eigvals.cwiseSqrt();
     Eigen::MatrixXd invRootEigVals = eigvals;
     reciprocal(invRootEigVals, eps);
     invRootEigVals = invRootEigVals.cwiseSqrt();
 
     Eigen::MatrixXd invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
-
-    // TODO: Q is suppose to be symmetric because Wa is suppose to be symmetric
     Eigen::MatrixXd Q = Wa + invRootWa * Wab * Wab.transpose() * invRootWa;
+    if (Q.isApprox(Q.transpose(), eps)) {
+        std::cout << "Q is symmetric" << std::endl;
+    }
+    else {
+        std::cout << "Q is NOT symmetric" << std::endl;
+        std::cout << Q.topLeftCorner(5, 5) << std::endl;
+    }
 
     Eigen::MatrixXd Sq, Vq;
     std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
 
-    // Eigen::MatrixXd invRootSq = Sq.cwiseSqrt();
     Eigen::MatrixXd invRootSq = Sq;
     reciprocal(invRootSq, eps);
     invRootSq = invRootSq.cwiseSqrt();
@@ -349,13 +345,6 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
     Eigen::MatrixXd tmp(Wa.rows() + Wab.cols(), Wa.cols());
     tmp << Wa, Wab.transpose();
     Eigen::MatrixXd V = tmp * invRootWa * Vq * invRootSq.asDiagonal();
-
-    if (Q.isApprox(Q.transpose(), eps)) {
-        std::cout << "Q is symmetric" << std::endl;
-    }
-    else {
-        std::cout << "Q is NOT symmetric" << std::endl;
-    }
 
     // assert(V.cols() == Sq.rows());
 
