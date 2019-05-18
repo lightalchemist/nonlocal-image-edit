@@ -554,7 +554,15 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
         ev = rescaleForVisualization(ev);
         ev.convertTo(ev, CV_8U);
         cv::imshow("ev" + std::to_string(i), ev);
-    
+    }
+
+    std::cout << V.transpose() * V << std::endl;
+    if ((V.transpose() * V).isIdentity(EPS)) {
+        std::cout << "V is orthogonal" << std::endl;
+    }
+    else {
+        std::cout << "V is not orthogonal" << std::endl;
+        std::cout << "V^T * V" << std::endl;
     }
 
     cv::waitKey(-1);
