@@ -261,22 +261,49 @@ invertDiagMatrix(const Eigen::MatrixXd& mat, double eps = 0.00001)
     return std::make_pair(invMat.asDiagonal(), numNonZero);
 }
 
-// template <T>
-// void reciprocal(T& mat, double eps) {
-//     // Iterate over each element and take reciprocal
-//
-// }
+auto eigenFactorize(const Eigen::MatrixXd& A, double eps=0.00001) {
+    // Eigenfactorization of a gram matrix (PSD)
 
-// auto robustReciprocal(const T& mat, double eps=0.00001) {
+    // NOTE: right most vectors are the eigenvectors with largest eigenvalues
+    // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es;
+    // es.compute(A);
+    // Eigen::MatrixXd eigvals = es.eigenvalues();
+    // Eigen::MatrixXd eigvecs = es.eigenvectors();
 
-// }
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
-// auto robustReciprocal(T& mat, double eps=0.00001) {
+    int rank = svd.rank();
+    std::cout << "Rank: " << svd.rank() << std::endl;
+    Eigen::VectorXd D = svd.singularValues();
 
-// }
+    // std::cout << "Top D singular values:" << std::endl;
+    // std::cout << D.head(rank) << std::endl;
 
-void eigenFactorize(const Eigen::MatrixXd& A) {
+    int r = 0;
+    for (r = 0; r < rank && D(r) >= eps; ++r);
 
+    D = svd.singularValues().head(r);
+    Eigen::MatrixXd U = svd.matrixU().leftCols(r);
+    Eigen::MatrixXd V = svd.matrixV().leftCols(r);
+
+    std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
+    std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
+    std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
+    for (int j = 0; j < D.cols(); j++) {
+        for (int i = 0; i < D.rows(); i++) {
+            if (D(i, j) < 0) {
+                std::cout << "-ve singular value: " << D(i, j) << " at " << i << ", " << j << std::endl;
+            }
+        }
+    }
+
+    std::cout << "Singular values: " << std::endl;
+    std::cout << D << std::endl;
+
+    Eigen::MatrixXd I = V.transpose() * U;
+    assert(I.isIdentity(eps));
+
+    return std::make_pair(U, D);
 }
 
 auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
@@ -290,10 +317,15 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     // Eigen::MatrixXd eigvecs = es.eigenvectors().real();
 
     // NOTE: right most vectors are the eigenvectors with largest eigenvalues
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es;
-    es.compute(Ka);
-    Eigen::MatrixXd eigvals = es.eigenvalues();
-    Eigen::MatrixXd eigvecs = es.eigenvectors();
+    // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es;
+    // es.compute(Ka);
+    // Eigen::MatrixXd eigvals = es.eigenvalues();
+    // Eigen::MatrixXd eigvecs = es.eigenvectors();
+
+    Eigen::MatrixXd eigvals;
+    Eigen::MatrixXd eigvecs;
+    std::tie(eigvecs, eigvals) = eigenFactorize(Ka);
+
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     std::cout << "eigvals shape: " << eigvals.rows() << " x " << eigvals.cols() << std::endl;
@@ -303,6 +335,9 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
     std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
     std::cout << "# non-zero eigenvalues: " << numNonZero << std::endl;
+
+    // std::cout << "SVD: " << std::endl;
+    // eigenFactorize(Ka);
 
     // assert (numNonZero == invEigVals.size());
 
@@ -315,11 +350,15 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     //                                       invEigVals);
 
     // Stack eigvecs at the top
-    int p = Ka.rows();
-    int n = p + Kab.cols();
+    // int p = Ka.rows();
+    // int n = p + Kab.cols();
+    // Eigen::MatrixXd phi(n, p);
+    // phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
+
+    int p = eigvals.rows();
+    int n = Ka.cols() + Kab.cols();
     Eigen::MatrixXd phi(n, p);
     phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
-
     return std::make_pair(eigvals, phi);
 }
 
@@ -453,6 +492,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     // std::cout << "eigvals tail" << std::endl;
     // std::cout << eigvals.bottomRows(20) << std::endl;
 
+    // std::cout << "Top 20 Eigenvalue: " << std::endl;
+    // std::cout << eigvals.topRows(20) << std::endl;
+    //
+    // std::cout << "Bottom 20 Eigenvalue: " << std::endl;
+    // std::cout << eigvals.bottomRows(20) << std::endl;
+
+
     for (int j = 0; j < eigvals.cols(); j++) {
         for (int i = 0; i < eigvals.rows(); i++) {
             if (eigvals(i, j) < 0) {
@@ -462,13 +508,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     }
 
     // Visualize eigenvectors. Remember to reshape, sort and convert to CV_8U
-    // Eigen::VectorXd v = sortVector(phi.rightCols(1), pixelOrder);
-    // std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
-    // cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
-    // ev0 = rescaleForVisualization(ev0);
-    // ev0.convertTo(ev0, CV_8U);
-    // cv::imshow("ev", ev0);
-    // cv::waitKey(-1);
+    Eigen::VectorXd v = sortVector(phi.leftCols(1), pixelOrder);
+    std::cout << "eigenvector min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
+    cv::Mat ev0 = eigen2opencv(v, L.rows, L.cols);
+    ev0 = rescaleForVisualization(ev0);
+    ev0.convertTo(ev0, CV_8U);
+    cv::imshow("ev", ev0);
+    cv::waitKey(-1);
 
     // std::cout << "Negative entries in phi" << std::endl;
     // for (int r = 0; r < phi.rows(); r++) {
