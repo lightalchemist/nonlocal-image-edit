@@ -19,19 +19,12 @@
 #include <Eigen/Eigenvalues>
 
 
-const double EPS = 0.000001;
+const double EPS = 1e-18;
 
 double kernel(const cv::Mat& I,
-              // int r, int s,
               int r1, int c1, int r2, int c2,
               double spatialScale, double intensityScale)
 {
-
-    // Ensure that I is 1 dimensional
-    // assert(I.rows == 1);
-    // double yr = I.at<double>(0, r);
-    // double ys = I.at<double>(0, s);
-
     double yr = I.at<double>(r1, c1);
     double ys = I.at<double>(r2, c2);
 
@@ -97,7 +90,6 @@ auto samplePixels(int nrows, int ncols, int nRowSamples)
         }
     }
 
-    //    selected.insert(selected.end(), rest.begin(), rest.end());
     return std::make_pair(selected, rest);
 }
 
@@ -125,7 +117,7 @@ computeKernelWeights(const cv::Mat& I,
 
     // TODO: Tune this
     // double variance = estimateVariance(I);
-    double variance = 400;
+    double variance = 800;
     double gammaIntensity = 1.0 / variance;
     double gammaSpatial = 0; // 1.0 / 10;
 
@@ -457,9 +449,9 @@ template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 {
     cv::Mat Ilab;
-    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
+    cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
     // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YUV);
-    cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
+    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
     std::vector<cv::Mat> channels;
     cv::split(Ilab, channels);
 
@@ -482,7 +474,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    int nRowSamples = 7;
+    int nRowSamples = 10;
 
     // std::vector<int> pixelOrder;
     Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples);
@@ -490,34 +482,8 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     Eigen::MatrixXd eigvals, phi;
     std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
 
-    Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> d = eigvals.asDiagonal();
-    std::cout << "d shape: " << d.rows() << " x " << d.cols() << std::endl;
-
-    // std::cout << "Ka top corner: " << std::endl;
-    // std::cout << Ka.topLeftCorner(5, 5) << std::endl;
-    // std::cout << "Ka bottom corner: " << std::endl;
-    // std::cout Ka.bottomRightCorner(5, 5) << std::endl;
-    // std::cout << "Kab top corner: " << std::endl;
-    // std::cout << Kab.topLeftCorner(5, 5) << std::endl;
-    // std::cout << "Kab bottom corner: " << std::endl; 
-    // std::cout << Kab.bottomRightCorner(5, 5) << std::endl;
-
-    // std::cout << "eigvals # rows: " << eigvals.rows() << " # cols: " << eigvals.cols() << std::endl;
-    // std::cout << "eigvals head" << std::endl;
-    // std::cout << eigvals.topRows(10) << std::endl;
-    // std::cout << "----------" << std::endl;
-    // std::cout << "eigvals tail" << std::endl;
-    // std::cout << eigvals.bottomRows(20) << std::endl;
-
-    // std::cout << "Checking negative entries in phi" << std::endl;
-    // for (int r = 0; r < phi.rows(); r++) {
-    //     for (int c = 0; c < phi.cols(); c++) {
-    //         if (phi(r, c) < 0) {
-    //             std::cout << phi(r, c) << " at (" << r << ", " << c << ")" << std::endl;
-    //         }
-    //     }
-    // }
-
+    // Eigen::DiagonalMatrix<double, Eigen::Dynamic, Eigen::Dynamic> d = eigvals.asDiagonal();
+    // std::cout << "d shape: " << d.rows() << " x " << d.cols() << std::endl;
 
     std::cout << "Top 5 Eigenvalue: " << std::endl;
     std::cout << eigvals.topRows(5) << std::endl;
@@ -536,7 +502,6 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     }
     else {
         std::cout << "Wa is NOT symmetric" << std::endl;
-
         std::cout << Wa.topLeftCorner(5, 5) << std::endl;
     }
 
@@ -558,12 +523,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
     std::cout << "Eigenvalues S" << std::endl;
     std::cout << S << std::endl;
 
-    // Matrix for permuting vector into the desired order
-    // Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(V.rows());
-    // for (int i = 0; i < pixelOrder.size(); ++i) {
-    //     P.indices()[i] = pixelOrder[i];
-    // }
-
+    // Permute eigenvector entries back to the same order as the original image.
     V = P * V;
     const int K = V.cols();
     for (int i = 0; i < V.cols() && i < K; i++) {
@@ -575,14 +535,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
         cv::imshow("ev" + std::to_string(i), ev);
     }
 
-    std::cout << V.transpose() * V << std::endl;
     if ((V.transpose() * V).isIdentity(EPS)) {
         std::cout << "V is orthogonal" << std::endl;
     }
     else {
         std::cout << "V is not orthogonal" << std::endl;
-        std::cout << "V^T * V" << std::endl;
-        std::cout << V.transpose() * V << std::endl;
+        // std::cout << "V^T * V" << std::endl;
+        // std::cout << V.transpose() * V << std::endl;
     }
 
     std::cout << "Row sum" << std::endl;
@@ -593,11 +552,35 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights)
 
     cv::waitKey(-1);
 
+    // cv::Mat Lv = L.reshape(0, V.rows());
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> lv;
+    lv.resize(V.rows(), 1);
+    int k = 0;
+    for (int i = 0; i < L.rows; i++) {
+        for (int j = 0; j < L.cols; j++) {
+            lv(k) = L.at<double>(i, j);
+            ++k;
+        }
+    }
 
-    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> intensityEmat(L.ptr<double>(), L.rows, L.cols);
+    std::cout << "Original image " << " min: " << lv.minCoeff() << " max: " << lv.maxCoeff() << std::endl;
+
+    Eigen::VectorXd result = V * (S.asDiagonal() * V.transpose() * lv);
+    std::cout << "edited image " << " min: " << result.minCoeff() << " max: " << result.maxCoeff() << std::endl;
+    cv::Mat edited = eigen2opencv(result, L.rows, L.cols);
+    // edited = rescaleForVisualization(edited);
+    edited.convertTo(edited, CV_8U);
+    cv::imshow("edited", edited);
+
+    cv::Mat LL;
+    L.convertTo(LL, CV_8U);
+    cv::imshow("original", LL);
+    cv::waitKey(-1);
+
+
+    // Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> intensityEmat(L.ptr<double>(), L.rows, L.cols);
     // intensityEmat.resize(V.rows(), 1);
 
-    // V.transpose() * 
     // Eigen::Map<MatrixXf, Eigen::Rowwise> intensity( L.data() ); 
 
 
