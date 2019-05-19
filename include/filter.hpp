@@ -75,9 +75,6 @@ auto samplePixels2(int nrows, int ncols, int nRowSamples, int nColSamples)
     int rowOffset = (rowStep - 1 + (nrows - rowStep * nRowSamples)) / 2;
     int colOffset = (colStep - 1 + (ncols - colStep * nColSamples)) / 2;
 
-    std::cout << "rowOffset: " << rowOffset << " colOffset: " << colOffset << std::endl;
-    std::cout << "rowStep: " << rowStep << " colStep: " << colStep << std::endl;
-
     std::vector<Point> selected, rest;
     selected.reserve(nRowSamples * nColSamples);
     rest.reserve(nrows * ncols - nRowSamples * nColSamples);
@@ -476,13 +473,14 @@ Eigen::VectorXd constantEigenVector(int n) {
     return Eigen::VectorXd::Ones(n, 1) / std::sqrt(n);
 }
 
+template <typename T>
 Eigen::VectorXd opencv2Eigen(const cv::Mat& I) {
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> lv;
+    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> lv;
     lv.resize(I.total(), 1);
     int k = 0;
     for (int i = 0; i < I.rows; i++) {
         for (int j = 0; j < I.cols; j++) {
-            lv(k) = I.at<double>(i, j);
+            lv(k) = I.at<T>(i, j);
             ++k;
         }
     }
@@ -512,8 +510,8 @@ Eigen::MatrixXd transformEigenValues(const Eigen::MatrixXd& eigvals,
 
 
 template <typename T>
-std::pair<Eigen::MatrixXd, Eigen::MatrixXd> 
-makeFilter(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy, int nSinkhornIter)
+std::pair<Eigen::MatrixXd, Eigen::DiagonalMatrix<T, Eigen::Dynamic, Eigen::Dynamic> > 
+makeFilter(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy, int nSinkhornIter, int nEigenVectors=20)
 {
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
@@ -536,14 +534,96 @@ makeFilter(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColS
 
     std::cout << "S top k of total length: " << S.rows() << std::endl;
     int nEigVals = S.rows();
-    int t = std::min(nEigVals, 20);
+    int t = std::min(nEigVals, nEigenVectors);
     std::cout << S.topRows(t) << std::endl;
     std::cout << "S bottom k" << std::endl;
     std::cout << S.bottomRows(5) << std::endl;
 
     V = P * V;
+    Eigen::MatrixXd fS = transformEigenValues(S, weights);
+    std::cout << "Filtered fS top k" << std::endl;
+    std::cout << fS.topRows(10) << std::endl;
+    std::cout << "Filtered fS bottom k" << std::endl;
+    std::cout << fS.bottomRows(10) << std::endl;
+
+    int nFilters = std::min(5, (int) fS.rows());
+    return std::make_pair(V.leftCols(nFilters), fS.topRows(nFilters).asDiagonal());
 }
 
+template <typename T>
+cv::Mat filterImageColorCast(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy, int nSinkhornIter)
+{
+    cv::Mat II;
+
+    // cv::cvtColor(I, II, cv::COLOR_BGR2YUV);
+     cv::cvtColor(I, II, cv::COLOR_BGR2Lab);
+    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
+    std::vector<cv::Mat> channels;
+    cv::split(II, channels);
+
+    channels[0].convertTo(channels[0], CV_64F);
+    channels[1].convertTo(channels[1], CV_64F);
+    channels[2].convertTo(channels[2], CV_64F);
+
+    Eigen::MatrixXd V, S;
+    std::tie(V, S) = makeFilter(channels[0], weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter);
+
+    Eigen::VectorXd u = opencv2Eigen<double>(channels[1]);
+    Eigen::VectorXd v = opencv2Eigen<double>(channels[2]);
+
+    Eigen::VectorXd filteredU = V * (S * V.transpose() * u);
+    Eigen::VectorXd filteredV = V * (S * V.transpose() * v);
+
+    cv::Mat matU = eigen2opencv(filteredU, I.rows, I.cols);
+    cv::Mat matV = eigen2opencv(filteredV, I.rows, I.cols);
+    matU.convertTo(matU, CV_8U);
+    matV.convertTo(matV, CV_8U);
+
+    channels[0].convertTo(channels[0], CV_8U);
+    channels[1] = matU;
+    channels[2] = matV;
+
+    cv::Mat filteredImage;
+    cv::merge(channels, filteredImage);
+
+    cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
+    return filteredImage;
+}
+
+template <typename T>
+cv::Mat filterImage2(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy, int nSinkhornIter, int nEigenVectors=20)
+{
+    cv::Mat II;
+
+    // cv::cvtColor(I, II, cv::COLOR_BGR2YUV);
+     cv::cvtColor(I, II, cv::COLOR_BGR2Lab);
+    // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
+    std::vector<cv::Mat> channels;
+    cv::split(II, channels);
+
+    channels[0].convertTo(channels[0], CV_64F);
+    // channels[1].convertTo(channels[1], CV_64F);
+    // channels[2].convertTo(channels[2], CV_64F);
+
+    Eigen::MatrixXd V, S;
+    std::tie(V, S) = makeFilter(channels[0], weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+
+    Eigen::VectorXd y = opencv2Eigen<double>(channels[0]);
+    Eigen::VectorXd filteredY = V * (S * V.transpose() * y);
+
+    cv::Mat matY = eigen2opencv(filteredY, I.rows, I.cols);
+    matY.convertTo(matY, CV_8U);
+
+    channels[0] = matY;
+    channels[0].convertTo(channels[0], CV_8U);
+
+    cv::Mat filteredImage;
+    cv::merge(channels, filteredImage);
+
+    // cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
+    cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
+    return filteredImage;
+}
 
 template <typename T>
 cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy, int nSinkhornIter)
@@ -637,20 +717,9 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
         std::cout << (V.row(i) * S.asDiagonal() * V.transpose()).sum() << std::endl;
     }
 
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> lv = opencv2Eigen(L);
-    // lv.resize(L.total(), 1);
-    // int k = 0;
-    // for (int i = 0; i < L.rows; i++) {
-    //     for (int j = 0; j < L.cols; j++) {
-    //         lv(k) = L.at<double>(i, j);
-    //         ++k;
-    //     }
-    // }
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> lv = opencv2Eigen<double>(L);
     std::cout << "Original image " << " min: " << lv.minCoeff() << " max: " << lv.maxCoeff() << std::endl;
     std::cout << "Mean of lv: " << lv.mean() << std::endl;
-
-    // V.col(0) = constantEigenVector(V.rows());
-    // S(0, 0) = 1;
 
     Eigen::VectorXd result = V * (S.asDiagonal() * V.transpose() * lv);
     std::cout << "edited image " << " min: " << result.minCoeff() << " max: " << result.maxCoeff() << std::endl;
