@@ -25,13 +25,8 @@ int main(int argc, char* argv[])
     int nSinkhornIter = std::stoi(argv[7]);
     int nEigenVectors = std::stoi(argv[8]);
     std::vector<double> weights;
-    for (auto i = 9u; i < argc; ++i) {
+    for (auto i = 9; i < argc; ++i) {
         weights.push_back(std::stod(argv[i]));
-    }
-
-    std::cout << "Weights: " << std::endl;
-    for (auto i : weights) {
-        std::cout << i << std::endl;
     }
 
     cv::Mat image = cv::imread(imagePath);
@@ -40,22 +35,11 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-//    cv::imshow("original", image);
-//    cv::waitKey(0);
-
-    // Always convert image to landscape mode first by rotating it
-    // Then rotate it back later. This is to ensure we always sample the shorter side
-    // and hence less likely to lose information in the image.
-
-    // cv::Mat result = filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter);
-    // cv::imwrite(outputPath, result);
-    // cv::Mat colorCorrected = filterImageColorCast(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter);
-    // cv::imwrite(outputPath, colorCorrected);
-    // cv::imshow("result", colorCorrected);
-
-    cv::Mat result = filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    cv::Mat result = im::filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);    
+    std::cout << "Done. Press any key in result window to exit." << std::endl;
+    
     cv::imwrite(outputPath, result);
-    cv::imshow("result", result);
+    cv::imshow("Result", result);
     cv::waitKey(-1);
 
     return 0;
