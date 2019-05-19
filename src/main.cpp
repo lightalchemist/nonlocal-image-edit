@@ -11,8 +11,8 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 11) {
-        std::cerr << "Usage: " << argv[0] << " <image> <output> <# row samples> <# col samples> <hx> <hy> <weight 1> <weight 2> <weight 3> <weight 4>" << std::endl;
+    if (argc < 12) {
+        std::cerr << "Usage: " << argv[0] << " <image> <output> <# row samples> <# col samples> <hx> <hy> <# sinkhorn iterations> <weight 1> <weight 2> <weight 3> <weight 4>" << std::endl;
         return 0;
     }
 
@@ -22,9 +22,10 @@ int main(int argc, char* argv[])
     int nColSamples = std::stoi(argv[4]);
     double hx = std::stod(argv[5]);
     double hy = std::stod(argv[6]);
+    int nSinkhornIter = std::stoi(argv[7]);
     std::vector<double> weights;
-    for (auto i = 0u; i < 4; ++i) {
-        weights.push_back(std::stod(argv[7 + i]));
+    for (auto i = 8u; i < argc; ++i) {
+        weights.push_back(std::stod(argv[i]));
     }
 
     cv::Mat image = cv::imread(imagePath);
@@ -40,8 +41,8 @@ int main(int argc, char* argv[])
     // Then rotate it back later. This is to ensure we always sample the shorter side
     // and hence less likely to lose information in the image.
 
-    cv::Mat result = filterImage(image, weights, nRowSamples, nColSamples, hx, hy);
-    // cv::imwrite(outputPath, result);
+    cv::Mat result = filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter);
+    cv::imwrite(outputPath, result);
 
     return 0;
 }
