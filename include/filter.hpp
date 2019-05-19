@@ -173,8 +173,8 @@ sinkhornKnopp(const Eigen::MatrixXd& phi,
     // TODO: Debug this by testing on small, almost symmetric, matrices.
 
     int n = phi.rows();
-//    Eigen::MatrixXd r = Eigen::VectorXd::Ones(n, 1);
-    Eigen::VectorXd r = Eigen::VectorXd::Ones(n, 1);
+    Eigen::MatrixXd r = Eigen::VectorXd::Ones(n, 1);
+//    Eigen::VectorXd r = Eigen::VectorXd::Ones(n, 1);
     Eigen::MatrixXd c;
     Eigen::MatrixXd Dphi_t = eigvals.asDiagonal() * phi.transpose();
     for (int i = 0; i < maxIter; i++) {
@@ -193,7 +193,8 @@ sinkhornKnopp(const Eigen::MatrixXd& phi,
     for (int i = 0; i < p; i++) {
         Waab.row(i) = r(i) * (eigvals.transpose().array() * phi.row(i).array()).matrix() * tmp;
     }
-
+    
+//    Eigen::MatrixXd Waab = (r.asDiagonal() * (phi * eigvals.asDiagonal())) * tmp;
     Eigen::MatrixXd Wa = Waab.leftCols(p);
     Eigen::MatrixXd Wab = Waab.rightCols(n - p);
     assert(Wa.cols() + Wab.cols() == n);
@@ -251,13 +252,7 @@ auto eigenDecomposition(const Eigen::MatrixXd& A, double eps=EPS) {
     std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
     std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
     std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
-    for (int j = 0; j < D.cols(); j++) {
-        for (int i = 0; i < D.rows(); i++) {
-            if (D(i, j) < 0) {
-                std::cout << "-ve singular value: " << D(i, j) << " at " << i << ", " << j << std::endl;
-            }
-        }
-    }
+    printNegativeEntries(D);
 
     // Eigen::MatrixXd I = V.transpose() * U;
     // assert(I.isIdentity(eps));
