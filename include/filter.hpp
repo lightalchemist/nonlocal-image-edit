@@ -167,9 +167,6 @@ computeKernelWeights2(const cv::Mat& I, Eigen::MatrixXd& Ka, Eigen::MatrixXd& Ka
         }
     }
     
-    std::cout << "Checking Ka for negative entries" << std::endl;
-    printNegativeEntries(Ka);
-
     assert(Ka.isApprox(Ka.transpose()));
     if (Ka.isApprox(Ka.transpose())) {
         std::cout << "Ka is symmetric" << std::endl;
