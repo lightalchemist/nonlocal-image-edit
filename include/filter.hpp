@@ -20,7 +20,8 @@
 
 
 // const double EPS = 1e-19;
-const double EPS = 1e-20;
+// const double EPS = 1e-20;
+const double EPS = 1e-15;
 
 double kernel(const cv::Mat& I,
               int r1, int c1, int r2, int c2,
@@ -29,10 +30,10 @@ double kernel(const cv::Mat& I,
     double yr = I.at<double>(r1, c1);
     double ys = I.at<double>(r2, c2);
 
-    // double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
+    double squareSpatialDist = (r1 - r2) * (r1 - r2) + (c1 - c2) * (c1 - c2);
     double squareIntensityDist = (yr - ys) * (yr - ys);
-    // return std::exp(-spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
-    return std::exp(- intensityScale * squareIntensityDist);
+    return std::exp(-spatialScale * squareSpatialDist - intensityScale * squareIntensityDist);
+    // return std::exp(- intensityScale * squareIntensityDist);
 }
 
 inline
@@ -57,7 +58,7 @@ void printNegativeEntries(const Eigen::MatrixXd& mat) {
     }
 }
 
-auto samplePixels(int nrows, int ncols, int nRowSamples)
+auto samplePixels(int nrows, int ncols, int nRowSamples, int nColSamples2)
 {
     float ratio = static_cast<float>(ncols) / static_cast<float>(nrows);
     int nColSamples = std::floor(std::fmax(ratio * nRowSamples, 1.0));
@@ -91,30 +92,27 @@ auto samplePixels(int nrows, int ncols, int nRowSamples)
 }
 
 Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic>
-computeKernelWeights(const cv::Mat& I,
-                     Eigen::MatrixXd& Ka,
-                     Eigen::MatrixXd& Kab,
-                     int nRowSamples,
-                     double hy)
+computeKernelWeights(const cv::Mat& I, Eigen::MatrixXd& Ka, Eigen::MatrixXd& Kab,
+                     int nRowSamples, int nColSamples, double hx, double hy)
 {
     int nrows = I.rows, ncols = I.cols;
     int nPixels = I.total();
 
     std::vector<int> selected, rest;
-    std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples);
+    std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples, nColSamples);
     int nSamples = selected.size();
     Ka.resize(nSamples, nSamples);
     Kab.resize(nSamples, nPixels - nSamples);
 
     std::cout << "Ka size: " << Ka.rows() << " x " << Ka.cols() << std::endl;
     std::cout << "Kab size: " << Kab.rows() << " x " << Kab.cols() << std::endl;
-    std::cout << "hy: " << hy << std::endl;
+    std::cout << "hx: " << hx << " hy: " << hy << std::endl;
     double gammaIntensity = 1.0 / (hy * hy);
-    double gammaSpatial = 0;
+    double gammaSpatial = 1.0 / (hx * hx);
 
     int r1, c1, r2, c2;
     for (auto i = 0u; i < selected.size(); ++i) {
-        // Compute Ka
+        // Ka
         std::tie(r1, c1) = to2DCoords(selected[i], ncols);
         for (auto j = i; j < selected.size(); ++j) {
             std::tie(r2, c2) = to2DCoords(selected[j], ncols);
@@ -123,7 +121,7 @@ computeKernelWeights(const cv::Mat& I,
             Ka(j, i) = val;
         }
 
-        // Compute Kab
+        // Kab
         for (auto j = 0u; j < rest.size(); j++) {
             std::tie(r2, c2) = to2DCoords(rest[j], ncols);
             Kab(i, j) = kernel(I, r1, c1, r2, c2, gammaSpatial, gammaIntensity);
@@ -244,8 +242,8 @@ auto eigenDecomposition(const Eigen::MatrixXd& A, double eps=EPS) {
     for (r = 0; r < rank && D(r) >= eps; ++r);
 
     D = svd.singularValues().head(r);
-    Eigen::MatrixXd U = svd.matrixU().leftCols(r); //.cwiseAbs();
-    Eigen::MatrixXd V = svd.matrixV().leftCols(r); //.cwiseAbs();
+    Eigen::MatrixXd U = svd.matrixU().leftCols(r);
+    Eigen::MatrixXd V = svd.matrixV().leftCols(r);
 
     std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
     std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
@@ -289,12 +287,15 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     return std::make_pair(eigvals, phi);
 }
 
-void plotSampledPoints(cv::Mat& I, int nSamples)
+void plotSampledPoints(cv::Mat& I, int nRowSamples)
 {
+    // Dummy variable
+    int nColSamples = -1;
+
     int nrows = I.rows;
     int ncols = I.cols;
     std::vector<int> selected, rest;
-    std::tie(selected, rest) = samplePixels(nrows, ncols, nSamples);
+    std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples, nColSamples);
     for (int i : selected) {
         int r, c;
         std::tie(r, c) = to2DCoords(i, ncols);
@@ -332,7 +333,7 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
     }
     else {
         std::cout << "Q is NOT symmetric" << std::endl;
-        std::cout << Q.topLeftCorner(5, 5) << std::endl;
+        std::cout << Q.bottomRightCorner(5, 5) << std::endl;
     }
 
     Eigen::MatrixXd Sq, Vq;
@@ -355,8 +356,12 @@ Eigen::VectorXd constantEigenVector(int n) {
     return Eigen::VectorXd::Ones(n, 1) / std::sqrt(n);
 }
 
+Eigen::MatrixXd scaleEigenValues(const Eigen::MatrixXd& eigvals) {
+
+}
+
 template <typename T>
-cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hy)
+cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples, double hx, double hy)
 {
     cv::Mat Ilab;
      cv::cvtColor(I, Ilab, cv::COLOR_BGR2Lab);
@@ -365,7 +370,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
     std::vector<cv::Mat> channels;
     cv::split(Ilab, channels);
 
-    // TODO: Check if value of L depends on original type.
+    // TODO: Check if value of L depends on type of I
     cv::Mat L = channels[0];
     L.convertTo(L, CV_64F);
 
@@ -375,7 +380,7 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
 
     std::cout << "Computing kernel weights" << std::endl;
     Eigen::MatrixXd Ka, Kab;
-    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples, hy);
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = computeKernelWeights(L, Ka, Kab, nRowSamples, nColSamples, hx, hy);
     
     std::cout << "Running Nystrom approximation" << std::endl;
     Eigen::MatrixXd eigvals, phi;
@@ -410,11 +415,13 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
     std::tie(V, S) = orthogonalize(Wa, Wab);
 
      std::cout << "S top k of total length: " << S.rows() << std::endl;
-     std::cout << S.topRows(7) << std::endl;
+     int nEigVals = S.rows();
+     int t = std::min(nEigVals, 20);
+     std::cout << S.topRows(t) << std::endl;
 
     // Permute eigenvector entries back to the same order as the original image.
     V = P * V;
-    const int K = 10; // V.cols();
+    const int K = 5; // V.cols();
     for (int i = 0; i < V.cols() && i < K; i++) {
         Eigen::VectorXd v = V.col(i);
         std::cout << "eigenvector " << i << " min: " << v.minCoeff() << " max: " << v.maxCoeff() << std::endl;
@@ -451,11 +458,10 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
     }
     std::cout << "Original image " << " min: " << lv.minCoeff() << " max: " << lv.maxCoeff() << std::endl;
 
-    V.col(0) = constantEigenVector(V.rows());
-    S(0, 0) = 1;
-    
-    std::cout << "S:" << std::endl;
-    std::cout << S.topRows(4) << std::endl;
+    std::cout << "Mean of lv: " << lv.mean() << std::endl;
+
+    // V.col(0) = constantEigenVector(V.rows());
+    // S(0, 0) = 1;
     
     Eigen::VectorXd result = V * (S.asDiagonal() * V.transpose() * lv);
     std::cout << "edited image " << " min: " << result.minCoeff() << " max: " << result.maxCoeff() << std::endl;
@@ -468,13 +474,6 @@ cv::Mat filterImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, 
     L.convertTo(LL, CV_8U);
     cv::imshow("original", LL);
     cv::waitKey(-1);
-
-
-    // Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> intensityEmat(L.ptr<double>(), L.rows, L.cols);
-    // intensityEmat.resize(V.rows(), 1);
-
-    // Eigen::Map<MatrixXf, Eigen::Rowwise> intensity( L.data() ); 
-
 
     return cv::Mat();
 }
