@@ -152,16 +152,24 @@ computeKernelWeights(const cv::Mat& I, Eigen::MatrixXd& Ka, Eigen::MatrixXd& Kab
     return P;
 }
 
-void reciprocal(Eigen::MatrixXd& mat, double eps=EPS) {
-    for (int i = 0; i < mat.rows(); i++) {
-        for (int j = 0; j < mat.cols(); j++) {
-            if (std::abs(mat(i, j)) >= eps) {
-                mat(i, j) = 1 / mat(i, j);
-            }
-            else {
-                mat(i, j) = 0;
-            }
+//void reciprocal(Eigen::MatrixXd& mat, double eps=EPS) {
+void reciprocal(Eigen::VectorXd& v, double eps=EPS) {
+    for (int i = 0; i < v.rows(); i++) {
+        if (std::abs(v(i)) >= eps) {
+            v(i) = 1 / v(i);
         }
+        else {
+            v(i) = 0;
+        }
+        
+//        for (int j = 0; j < mat.cols(); j++) {
+//            if (std::abs(mat(i, j)) >= eps) {
+//                mat(i, j) = 1 / mat(i, j);
+//            }
+//            else {
+//                mat(i, j) = 0;
+//            }
+//        }
     }
 }
 
@@ -173,9 +181,10 @@ sinkhornKnopp(const Eigen::MatrixXd& phi,
     // TODO: Debug this by testing on small, almost symmetric, matrices.
 
     int n = phi.rows();
-    Eigen::MatrixXd r = Eigen::VectorXd::Ones(n, 1);
-//    Eigen::VectorXd r = Eigen::VectorXd::Ones(n, 1);
-    Eigen::MatrixXd c;
+//    Eigen::MatrixXd r = Eigen::VectorXd::Ones(n, 1);
+    Eigen::VectorXd r = Eigen::VectorXd::Ones(n, 1);
+//    Eigen::MatrixXd c;
+    Eigen::VectorXd c;
     Eigen::MatrixXd Dphi_t = eigvals.asDiagonal() * phi.transpose();
     for (int i = 0; i < maxIter; i++) {
         c = phi * (Dphi_t * r);
@@ -265,7 +274,7 @@ auto eigenDecomposition(const Eigen::MatrixXd& A, double eps=EPS) {
 auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
                           double eps = EPS)
 {
-    Eigen::MatrixXd eigvals;
+    Eigen::VectorXd eigvals;
     Eigen::MatrixXd eigvecs;
     std::tie(eigvecs, eigvals) = eigenDecomposition(Ka);
 
@@ -278,7 +287,7 @@ auto nystromApproximation(const Eigen::MatrixXd& Ka, const Eigen::MatrixXd& Kab,
     std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
     std::cout << "# non-zero eigenvalues: " << numNonZero << std::endl;
 
-    int p = eigvals.rows();
+    int p = eigvals.size();
     int n = Ka.cols() + Kab.cols();
     Eigen::MatrixXd phi(n, p);
     phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
@@ -331,10 +340,11 @@ cv::Mat rescaleForVisualization(const cv::Mat& mat) {
 
 
 auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
-    Eigen::MatrixXd eigvals, eigvecs;
+    Eigen::MatrixXd eigvecs;
+    Eigen::VectorXd eigvals;
     std::tie(eigvecs, eigvals) = eigenDecomposition(Wa, eps);
 
-    Eigen::MatrixXd invRootEigVals = eigvals;
+    Eigen::VectorXd invRootEigVals = eigvals;
     reciprocal(invRootEigVals, eps);
     invRootEigVals = invRootEigVals.cwiseSqrt();
 
@@ -348,10 +358,11 @@ auto orthogonalize(Eigen::MatrixXd& Wa, Eigen::MatrixXd& Wab, double eps=EPS) {
         std::cout << Q.bottomRightCorner(5, 5) << std::endl;
     }
 
-    Eigen::MatrixXd Sq, Vq;
+    Eigen::MatrixXd Vq;
+    Eigen::VectorXd Sq;
     std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
 
-    Eigen::MatrixXd invRootSq = Sq;
+    Eigen::VectorXd invRootSq = Sq;
     reciprocal(invRootSq, eps);
     invRootSq = invRootSq.cwiseSqrt();
 
