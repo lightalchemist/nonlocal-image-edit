@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
     // cv::imwrite(outputPath, colorCorrected);
     // cv::imshow("result", colorCorrected);
 
-    cv::Mat result = filterImage2(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    cv::Mat result = filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
     cv::imwrite(outputPath, result);
     cv::imshow("result", result);
     cv::waitKey(-1);
