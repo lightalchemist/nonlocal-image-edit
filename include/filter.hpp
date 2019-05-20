@@ -15,8 +15,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
 
-namespace im {
-    
+namespace nle {
+
     using Vec = Eigen::VectorXd;
     using Mat = Eigen::MatrixXd;
     using DType = double;

@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    cv::Mat result = im::filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);    
+    cv::Mat result = nle::filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);    
     std::cout << "Done. Press any key in result window to exit." << std::endl;
     
     cv::imwrite(outputPath, result);
