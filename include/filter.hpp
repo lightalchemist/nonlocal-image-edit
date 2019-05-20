@@ -254,6 +254,10 @@ namespace nle {
     
     auto eigenDecomposition(const Mat& A, DType eps=EPS) {
         // Compute eigen factorization of a PSD matrix
+        
+        // TODO: Replace using solver from Spectra library that computes only top k
+        // eigenvectors and eigenvalues.
+        
         Eigen::JacobiSVD<Mat> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
         Vec D = svd.singularValues();
         int rank = svd.rank();
