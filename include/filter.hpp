@@ -16,7 +16,6 @@
 #include <Eigen/Eigenvalues>
 
 namespace nle {
-
     using Vec = Eigen::VectorXd;
     using Mat = Eigen::MatrixXd;
     using DType = double;

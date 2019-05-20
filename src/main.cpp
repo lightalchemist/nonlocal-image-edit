@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     double hy = std::stod(argv[6]);
     int nSinkhornIter = std::stoi(argv[7]);
     int nEigenVectors = std::stoi(argv[8]);
-    std::vector<im::DType> weights;
+    std::vector<nle::DType> weights;
     for (auto i = 9; i < argc; ++i) {
         weights.push_back(std::stod(argv[i]));
     }
