@@ -1,3 +1,6 @@
+#ifndef FILTER_HPP
+#define FILTER_HPP
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -44,13 +47,13 @@ namespace nle {
     }
     
     template <typename T>
-    Vec opencv2Eigen(const cv::Mat& I) {
+    Vec opencv2Eigen(const cv::Mat& mat) {
         Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> lv;
-        lv.resize(I.total(), 1);
+        lv.resize(mat.total(), 1);
         int k = 0;
-        for (int i = 0; i < I.rows; i++) {
-            for (int j = 0; j < I.cols; j++) {
-                lv(k) = I.at<T>(i, j);
+        for (int i = 0; i < mat.rows; i++) {
+            for (int j = 0; j < mat.cols; j++) {
+                lv(k) = mat.at<T>(i, j);
                 ++k;
             }
         }
@@ -90,35 +93,35 @@ namespace nle {
         return std::make_pair(selected, rest);
     }
     
-    void plotSampledPoints(cv::Mat& I, int nRowSamples, int nColSamples)
+    void plotSampledPoints(cv::Mat& mat, int nRowSamples, int nColSamples)
     {
-        int nrows = I.rows;
-        int ncols = I.cols;
+        int nrows = mat.rows;
+        int ncols = mat.cols;
         std::vector<Point> selected, rest;
         std::tie(selected, rest) = samplePixels(nrows, ncols, nRowSamples, nColSamples);
         for (Point p : selected) {
             int r = p.row, c = p.col;
-            cv::circle(I, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
+            cv::circle(mat, cv::Point(c, r), 2, cv::Scalar(255, 0, 0), -1);
         }
         
         std::cout << "# row samples: " << nRowSamples << " # col samples: " << nColSamples <<  " # selected: " << selected.size() << " # rest: " << rest.size() << std::endl;
     }
     
-    DType kernel(const cv::Mat& I, const Point& p1, const Point& p2,
+    DType kernel(const cv::Mat& mat, const Point& p1, const Point& p2,
                  DType spatialWeight, DType photometricWeight)
     {
-        DType yr = I.at<DType>(p1.row, p1.col);
-        DType ys = I.at<DType>(p2.row, p2.col);
+        DType yr = mat.at<DType>(p1.row, p1.col);
+        DType ys = mat.at<DType>(p2.row, p2.col);
         DType squareSpatialDist = (p1.row - p2.row) * (p1.row - p2.row) + (p1.col - p2.col) * (p1.col - p2.col);
         DType squareIntensityDist = (yr - ys) * (yr - ys);
         return std::exp(-spatialWeight * squareSpatialDist - photometricWeight * squareIntensityDist);
     }
     
-    DType negativeWeightedDistance(const cv::Mat& I, const Point& p1, const Point& p2,
+    DType negativeWeightedDistance(const cv::Mat& mat, const Point& p1, const Point& p2,
                                    DType spatialWeight, DType photometricWeight)
     {
-        DType yr = I.at<DType>(p1.row, p1.col);
-        DType ys = I.at<DType>(p2.row, p2.col);
+        DType yr = mat.at<DType>(p1.row, p1.col);
+        DType ys = mat.at<DType>(p2.row, p2.col);
         DType squareSpatialDist = (p1.row - p2.row) * (p1.row - p2.row) + (p1.col - p2.col) * (p1.col - p2.col);
         DType squareIntensityDist = (yr - ys) * (yr - ys);
         return -spatialWeight * squareSpatialDist - photometricWeight * squareIntensityDist;
@@ -134,11 +137,11 @@ namespace nle {
         }
     }
     
-    auto computeKernelWeights(const cv::Mat& I, int nRowSamples, int nColSamples, DType hx, DType hy)
+    auto computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples, DType hx, DType hy)
     {
-        int nPixels = I.total();
+        int nPixels = mat.total();
         std::vector<Point> selected, rest;
-        std::tie(selected, rest) = samplePixels(I.rows, I.cols, nRowSamples, nColSamples);
+        std::tie(selected, rest) = samplePixels(mat.rows, mat.cols, nRowSamples, nColSamples);
         int nSamples = selected.size();
         Mat Ka(nSamples, nSamples);
         Mat Kab(nSamples, nPixels - nSamples);
@@ -149,13 +152,13 @@ namespace nle {
             // Ka
             Point p1 = selected[i];
             for (auto j = i; j < selected.size(); ++j) {
-                auto val = negativeWeightedDistance(I, p1, selected[j], spatialWeight, photometricWeight);
+                auto val = negativeWeightedDistance(mat, p1, selected[j], spatialWeight, photometricWeight);
                 Ka(i, j) = val;
                 Ka(j, i) = val;
             }
             // Kab
             for (auto j = 0u; j < rest.size(); j++) {
-                Kab(i, j) = negativeWeightedDistance(I, p1, rest[j], spatialWeight, photometricWeight);
+                Kab(i, j) = negativeWeightedDistance(mat, p1, rest[j], spatialWeight, photometricWeight);
             }
         }
         // Convert Ka and Kab to kernels
@@ -175,11 +178,11 @@ namespace nle {
         Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(nPixels);
         for (auto i = 0u; i < selected.size(); ++i) {
             Point p = selected[i];
-            P.indices()[i] = to1DIndex(p.row, p.col, I.cols);
+            P.indices()[i] = to1DIndex(p.row, p.col, mat.cols);
         }
         for (auto j = 0u; j < rest.size(); ++j) {
             Point p = rest[j];
-            P.indices()[j + selected.size()] = to1DIndex(p.row, p.col, I.cols);
+            P.indices()[j + selected.size()] = to1DIndex(p.row, p.col, mat.cols);
         }
         
         return std::make_tuple(P, Ka, Kab);
@@ -266,10 +269,10 @@ namespace nle {
         std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
         std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
         printNegativeEntries(D);
-        Mat I = V.transpose() * U;
-        assert(I.isIdentity(eps));
-        std::cout << "I: " << std::endl;
-        std::cout << I.topLeftCorner(5, 5) << std::endl;
+        Mat mat = V.transpose() * U;
+        assert(mat.isIdentity(eps));
+        std::cout << "mat: " << std::endl;
+        std::cout << mat.topLeftCorner(5, 5) << std::endl;
 #endif
         
         return std::make_pair(U, D);
@@ -347,18 +350,19 @@ namespace nle {
     
     template <typename T>
     std::pair<Mat, Eigen::DiagonalMatrix<T, Eigen::Dynamic, Eigen::Dynamic> >
-    learnFilter(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples,
+    learnFilter(const cv::Mat& mat, std::vector<T>& weights, int nRowSamples, int nColSamples,
                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors=20)
     {
         Mat Ka, Kab;
         Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P;
-        std::tie(P, Ka, Kab) = computeKernelWeights(I, nRowSamples, nColSamples, hx, hy);
+        std::tie(P, Ka, Kab) = computeKernelWeights(mat, nRowSamples, nColSamples, hx, hy);
         
         Mat eigvals, phi;
         std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
         
         Mat Wa, Wab;
         std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
+        // Wa = (Wa + Wa.transpose()) / 2;
         
         Mat V, S;
         std::tie(V, S) = orthogonalize(Wa, Wab);
@@ -386,13 +390,13 @@ namespace nle {
         return std::make_pair(V.leftCols(nFilters), fS.topRows(nFilters).asDiagonal());
     }
     
-    cv::Mat filterImage(const cv::Mat& I, std::vector<DType>& weights,
+    cv::Mat filterImage(const cv::Mat& mat, std::vector<DType>& weights,
                         int nRowSamples, int nColSamples,
                         DType hx, DType hy,
                         int nSinkhornIter, int nEigenVectors=20)
     {
         cv::Mat II;
-        cv::cvtColor(I, II, cv::COLOR_BGR2Lab);
+        cv::cvtColor(mat, II, cv::COLOR_BGR2Lab);
         std::vector<cv::Mat> channels;
         cv::split(II, channels);
         channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
@@ -405,7 +409,7 @@ namespace nle {
         
         Vec y = opencv2Eigen<DType>(channels[0]);
         Vec filteredY = V * (S * V.transpose() * y);
-        cv::Mat matY = eigen2opencv(filteredY, I.rows, I.cols);
+        cv::Mat matY = eigen2opencv(filteredY, mat.rows, mat.cols);
         matY.convertTo(matY, CV_8U);
         channels[0] = matY;
         channels[0].convertTo(channels[0], CV_8U);
@@ -417,14 +421,14 @@ namespace nle {
     }
     
     template <typename T>
-    cv::Mat denoiseColorImage(const cv::Mat& I, std::vector<T>& weights, int nRowSamples, int nColSamples,
+    cv::Mat denoiseColorImage(const cv::Mat& mat, std::vector<T>& weights, int nRowSamples, int nColSamples,
                               DType hx, DType hy, int nSinkhornIter)
     {
         cv::Mat II;
         
-        // cv::cvtColor(I, II, cv::COLOR_BGR2YUV);
-        cv::cvtColor(I, II, cv::COLOR_BGR2Lab);
-        // cv::cvtColor(I, Ilab, cv::COLOR_BGR2YCrCb);
+        // cv::cvtColor(mat, II, cv::COLOR_BGR2YUV);
+        cv::cvtColor(mat, II, cv::COLOR_BGR2Lab);
+        // cv::cvtColor(mat, Ilab, cv::COLOR_BGR2YCrCb);
         std::vector<cv::Mat> channels;
         cv::split(II, channels);
         
@@ -442,8 +446,8 @@ namespace nle {
         Vec filteredU = V * (S * V.transpose() * u);
         Vec filteredV = V * (S * V.transpose() * v);
         
-        cv::Mat matU = eigen2opencv(filteredU, I.rows, I.cols);
-        cv::Mat matV = eigen2opencv(filteredV, I.rows, I.cols);
+        cv::Mat matU = eigen2opencv(filteredU, mat.rows, mat.cols);
+        cv::Mat matV = eigen2opencv(filteredV, mat.rows, mat.cols);
         matU.convertTo(matU, CV_8U);
         matV.convertTo(matV, CV_8U);
         channels[0].convertTo(channels[0], CV_8U);
@@ -458,3 +462,6 @@ namespace nle {
     }
     
 }
+
+#endif /* ifndef FILTER_HPP
+ */
