@@ -18,6 +18,10 @@
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
 
+#include <Spectra/MatOp/DenseGenMatProd.h>
+#include <Spectra/MatOp/DenseSymShiftSolve.h>
+#include <Spectra/SymEigsSolver.h>
+
 namespace nle {
     using Vec = Eigen::VectorXd;
     using Mat = Eigen::MatrixXd;
@@ -251,13 +255,43 @@ namespace nle {
         
         return std::make_pair(invMat.asDiagonal(), numNonZero);
     }
-    
+
+    auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS) {
+        nLargest = std::min(nLargest, (int) M.rows());
+
+        Spectra::DenseGenMatProd<DType> op_largest(M); 
+       // Construct solver object, requesting the top k largest eigenvalues
+        Spectra::SymEigsSolver< DType, Spectra::LARGEST_MAGN, Spectra::DenseGenMatProd<DType> >
+            solver(&op_largest, nLargest, 2 * nLargest);
+
+        solver.init();
+        int nConvergedEigenValues = solver.compute();
+
+        std::cout << "Matrix size: " << M.rows() << " x " << M.cols() << std::endl;
+        std::cout << "# converged eigenvalues: " << nConvergedEigenValues << std::endl;
+        if(solver.info() != Spectra::SUCCESSFUL) {
+            std::cout << "Eigen decomposition NOT successful. Results might be inaccurate." << std::endl;
+        }
+
+        Vec eigvals = solver.eigenvalues();
+        Mat eigvecs = solver.eigenvectors();
+
+        int r = 0;
+        for (r = 0; r < eigvals.size() && eigvals(r) >= eps; ++r);
+        if (r < eigvals.size()) {
+            eigvecs = eigvecs.leftCols(r);
+            eigvals = eigvals.head(r);
+        }
+
+        return std::make_pair(eigvecs, eigvals);
+    }
+
     auto eigenDecomposition(const Mat& A, DType eps=EPS) {
         // Compute eigen factorization of a PSD matrix
-        
+
         // TODO: Replace using solver from Spectra library that computes only top k
         // eigenvectors and eigenvalues.
-        
+
         Eigen::JacobiSVD<Mat> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
         Vec D = svd.singularValues();
         int rank = svd.rank();
@@ -300,7 +334,7 @@ namespace nle {
         return std::make_pair(eigvals, phi);
     }
     
-    auto orthogonalize(const Mat& Wa, const Mat& Wab, DType eps=EPS) {
+    auto orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DType eps=EPS) {
         Mat eigvecs;
         Vec eigvals;
         std::tie(eigvecs, eigvals) = eigenDecomposition(Wa, eps);
@@ -323,7 +357,8 @@ namespace nle {
         
         Mat Vq;
         Vec Sq;
-        std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
+        std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
+        // std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
         Vec invRootSq = Sq;
         reciprocal(invRootSq, eps);
         invRootSq = invRootSq.cwiseSqrt();
@@ -369,7 +404,7 @@ namespace nle {
         // Wa = (Wa + Wa.transpose()) / 2;
         
         Mat V, S;
-        std::tie(V, S) = orthogonalize(Wa, Wab);
+        std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
         
         V = P * V;
         Mat fS = transformEigenValues(S, weights);
