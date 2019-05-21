@@ -193,15 +193,18 @@ auto computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples, 
     return std::make_tuple(P, Ka, Kab);
 }
 
-void reciprocal(Vec& v, DType eps = EPS)
+int reciprocal(Vec& v, DType eps = EPS)
 {
+    int nnz = 0;
     for (int i = 0; i < v.rows(); i++) {
         if (std::abs(v(i)) >= eps) {
             v(i) = 1 / v(i);
+            ++nnz;
         } else {
             v(i) = 0;
         }
     }
+    return nnz;
 }
 
 std::pair<Mat, Mat>
@@ -324,14 +327,22 @@ auto nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps = EPS)
     std::tie(eigvecs, eigvals) = eigenDecomposition(Ka);
 
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
-    int numNonZero;
-    Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
-    std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
+    // int numNonZero;
+    // Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
 
-    eigvecs.resize(eigvecs.rows(), numNonZero);
-    invEigVals.resize(numNonZero);
+    Vec tmp = eigvals;
+    int numNonZero = reciprocal(tmp);
+    tmp = tmp.head(numNonZero);
+    Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals = tmp.asDiagonal();
+    // std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
+
+    eigvecs = eigvecs.leftCols(numNonZero);
+    // invEigVals = invEigVals.topLeftCorner(numNonZero, numNonZero);
+    // eigvecs.resize(eigvecs.rows(), numNonZero);
+    // invEigVals.resize(numNonZero);
 
     // int p = eigvals.size();
+    // int p = numNonZero;
     int p = numNonZero;
     int n = Ka.cols() + Kab.cols();
     Mat phi(n, p);
