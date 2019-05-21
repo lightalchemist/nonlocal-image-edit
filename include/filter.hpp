@@ -274,7 +274,7 @@ namespace nle {
         std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
         printNegativeEntries(D);
         Mat mat = V.transpose() * U;
-        assert(mat.isIdentity(eps));
+        // assert(mat.isIdentity(eps));
         std::cout << "mat: " << std::endl;
         std::cout << mat.topLeftCorner(5, 5) << std::endl;
 #endif
