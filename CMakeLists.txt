@@ -20,7 +20,7 @@ if (USE_BLAS)
     add_definitions(-DEIGEN_USE_BLAS -DEIGEN_USE_LAPACK)
 endif()
 
-option(USE_SPECTRA "Use SPECTRA for eigendecomposition" ON)
+option(USE_SPECTRA "Use SPECTRA for eigendecomposition" OFF)
 if (USE_SPECTRA)
     add_definitions(-DUSE_SPECTRA)
 endif()

@@ -453,6 +453,13 @@ namespace nle {
         cv::split(II, channels);
         channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
+#ifndef NDEBUG
+        cv::Mat tmp = mat.clone();
+        plotSampledPoints(tmp, nRowSamples, nColSamples);
+        cv::imshow("Sampled points", tmp);
+        cv::waitKey(-1);
+#endif
+
         Mat V;
         Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> S;
         std::tie(V, S) = learnFilter(channels[0], weights,
@@ -462,8 +469,9 @@ namespace nle {
         // Apply filter
         Vec c0 = opencv2Eigen<DType>(channels[0]);
         Vec filteredC0 = V * (S * V.transpose() * c0);
-        // cv::Mat matC0 = eigen2opencv(filteredC0, mat.rows, mat.cols);
         channels[0] = eigen2opencv(filteredC0, mat.rows, mat.cols);
+        channels[0] = cv::max(channels[0], 0);
+        channels[0] = cv::min(channels[0], 255);
         channels[0].convertTo(channels[0], CV_8U);
 
         cv::Mat filteredImage;
