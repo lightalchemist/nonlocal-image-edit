@@ -12,13 +12,17 @@ if (NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeCache.txt)
 endif()
 
 option(USE_BLAS "Use BLAS and LAPACK" OFF)
-
 if (USE_BLAS)
     find_package(BLAS REQUIRED)
     include_directories( ${BLAS_INCLUDE_DIRS} )
     find_package(LAPACK REQUIRED)
     include_directories( ${LAPACK_INCLUDE_DIRS} )
     add_definitions(-DEIGEN_USE_BLAS -DEIGEN_USE_LAPACK)
+endif()
+
+option(USE_SPECTRA "Use SPECTRA for eigendecomposition" ON)
+if (USE_SPECTRA)
+    add_definitions(-DUSE_SPECTRA)
 endif()
 
 find_package(OpenCV REQUIRED)
