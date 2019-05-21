@@ -223,15 +223,18 @@ namespace nle {
         
         // TODO: Check that these quantities are correct
         int p = phi.cols();
-        Mat Waab(p, n);
+        // Mat Waab(p, n);
         Mat tmp = (c.replicate(1, p).array() * phi.array()).matrix().transpose();
-        for (int i = 0; i < p; i++) {
-            Waab.row(i) = r(i) * (eigvals.transpose().array() * phi.row(i).array()).matrix() * tmp;
-        }
-        
-        //    Mat Waab = (r.asDiagonal() * (phi * eigvals.asDiagonal())) * tmp;
-        Mat Wa = Waab.leftCols(p);
-        Mat Wab = Waab.rightCols(n - p);
+        // for (int i = 0; i < p; i++) {
+        //     Waab.row(i) = r(i) * (eigvals.transpose().array() * phi.row(i).array()).matrix() * tmp;
+        // }
+
+        // Mat Waab = (r.head(p).asDiagonal() * (phi * eigvals.asDiagonal())) * tmp;
+        Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> R = r.head(p).asDiagonal();
+        Mat Wa = (R * (phi.topRows(p) * eigvals.asDiagonal())) * tmp.leftCols(p);
+        Mat Wab = (R * (phi.topRows(p) * eigvals.asDiagonal())) * tmp.rightCols(n - p);
+        // Mat Wa = Waab.leftCols(p);
+        // Mat Wab = Waab.rightCols(n - p);
         assert(Wa.cols() + Wab.cols() == n);
         
         return std::make_pair(Wa, Wab);
@@ -258,11 +261,13 @@ namespace nle {
 
     auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS) {
         nLargest = std::min(nLargest, (int) M.rows());
+        int ncv = std::min(2 * nLargest, (int) M.rows());
 
         Spectra::DenseGenMatProd<DType> op_largest(M); 
        // Construct solver object, requesting the top k largest eigenvalues
+
         Spectra::SymEigsSolver< DType, Spectra::LARGEST_MAGN, Spectra::DenseGenMatProd<DType> >
-            solver(&op_largest, nLargest, 2 * nLargest);
+            solver(&op_largest, nLargest, ncv);
 
         solver.init();
         int nConvergedEigenValues = solver.compute();
@@ -296,22 +301,26 @@ namespace nle {
         Vec D = svd.singularValues();
         int rank = svd.rank();
         int r = 0;
-        for (r = 0; r < rank && D(r) >= eps; ++r);
+        for (r = 0; r < rank && D(r) >= eps * 1e4; ++r);
         D = svd.singularValues().head(r);
         Mat U = svd.matrixU().leftCols(r);
         Mat V = svd.matrixV().leftCols(r);
         
-#ifndef NDEBUG
+// #ifndef NDEBUG
         std::cout << "Rank: " << svd.rank() << std::endl;
         std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
         std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
         std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
-        printNegativeEntries(D);
-        Mat mat = V.transpose() * U;
-        assert(mat.isIdentity(eps));
-        std::cout << "mat: " << std::endl;
-        std::cout << mat.topLeftCorner(5, 5) << std::endl;
-#endif
+        std::cout << "Smallest k eigenvalues" << std::endl;
+        int k = std::min(5, r);
+        std::cout << D.tail(k) << std::endl;
+
+        // printNegativeEntries(D);
+        // Mat mat = V.transpose() * U;
+        // assert(mat.isIdentity(eps));
+        // std::cout << "mat: " << std::endl;
+        // std::cout << mat.topLeftCorner(5, 5) << std::endl;
+// #endif
         
         return std::make_pair(U, D);
     }
@@ -326,6 +335,9 @@ namespace nle {
         int numNonZero;
         Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals;
         std::tie(invEigVals, numNonZero) = invertDiagMatrix(eigvals, eps);
+
+        eigvecs.resize(eigvecs.rows(), numNonZero);
+        invEigVals.resize(numNonZero);
         
         int p = eigvals.size();
         int n = Ka.cols() + Kab.cols();
@@ -392,20 +404,26 @@ namespace nle {
     learnFilter(const cv::Mat& mat, std::vector<T>& weights, int nRowSamples, int nColSamples,
                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors=20)
     {
+        std::cout << "Computing kernels" << std::endl;
+
         Mat Ka, Kab;
         Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P;
         std::tie(P, Ka, Kab) = computeKernelWeights(mat, nRowSamples, nColSamples, hx, hy);
         
+        std::cout << "Nystrom approximation" << std::endl;
         Mat eigvals, phi;
         std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
         
+        std::cout << "Sinkhorn" << std::endl;
         Mat Wa, Wab;
         std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
         // Wa = (Wa + Wa.transpose()) / 2;
         
+        std::cout << "Orthogonalize" << std::endl;
         Mat V, S;
         std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
         
+        std::cout << "Transforming eigenvalues" << std::endl;
         V = P * V;
         Mat fS = transformEigenValues(S, weights);
         
@@ -425,8 +443,12 @@ namespace nle {
         std::cout << fS.bottomRows(10) << std::endl;
 #endif
         
+        std::cout << "Returning results" << std::endl;
         int nFilters = std::min(nEigenVectors, (int) fS.rows());
         return std::make_pair(V.leftCols(nFilters), fS.topRows(nFilters).asDiagonal());
+        // V.resize(V.rows(), nFilters);
+        // fS.resize(nFilters, fS.cols());
+        // return std::make_pair(V, fS.asDiagonal());
     }
     
     cv::Mat filterImage(const cv::Mat& mat, std::vector<DType>& weights,
