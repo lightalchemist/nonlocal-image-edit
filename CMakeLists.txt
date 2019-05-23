@@ -52,8 +52,12 @@ file(GLOB PROJECT_SRC
     "*.cpp"
 )
 
-add_executable(${PROJECT_NAME} "src/main.cpp" "src/filter.cpp" "include/filter.hpp")
+add_executable("enhance" "src/enhance.cpp" "src/filter.cpp" "include/filter.hpp")
+add_executable("denoise" "src/denoise.cpp" "src/filter.cpp" "include/filter.hpp")
+
 # add_executable(${PROJECT_NAME} ${PROJECT_SRC} "include/filter.hpp")
 add_compile_options(-Wall -Wextra -Wpedantic)
 # target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} OpenMP::OpenMP_CXX ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)
+# target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)
+target_link_libraries("enhance" ${OpenCV_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)
+target_link_libraries("denoise" ${OpenCV_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)

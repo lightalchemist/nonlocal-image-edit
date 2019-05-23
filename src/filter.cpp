@@ -222,44 +222,6 @@ auto eigenDecomposition(const Mat& M, DType eps=EPS)
     return std::make_pair(U, D);
 }
 
-
-// template <typename T>
-// cv::Mat denoiseColorImage(const cv::Mat& mat, std::vector<T>& weights, int nRowSamples, int nColSamples,
-//     DType hx, DType hy, int nSinkhornIter)
-// {
-//     cv::Mat II;
-//     cv::cvtColor(mat, II, cv::COLOR_BGR2Lab);
-//     std::vector<cv::Mat> channels;
-//     cv::split(II, channels);
-//     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
-//     channels[1].convertTo(channels[1], OPENCV_MAT_TYPE);
-//     channels[2].convertTo(channels[2], OPENCV_MAT_TYPE);
-//
-//     Mat V, S;
-//     std::tie(V, S) = makeFilter(channels[0], weights,
-//         nRowSamples, nColSamples,
-//         hx, hy, nSinkhornIter);
-//
-//     // Apply filter
-//     Vec c1 = opencv2Eigen<DType>(channels[1]);
-//     Vec c2 = opencv2Eigen<DType>(channels[2]);
-//     Vec filteredC1 = V * (S * V.transpose() * c1);
-//     Vec filteredC2 = V * (S * V.transpose() * c2);
-//
-//     // Merge filtered channels to get result
-//     cv::Mat matC1 = eigen2opencv(filteredC1, mat.rows, mat.cols);
-//     cv::Mat matC2 = eigen2opencv(filteredC2, mat.rows, mat.cols);
-//     matC1.convertTo(matC1, CV_8U);
-//     matC2.convertTo(matC2, CV_8U);
-//     channels[0].convertTo(channels[0], CV_8U);
-//     channels[1] = matC1;
-//     channels[2] = matC2;
-//     cv::Mat filteredImage;
-//     cv::merge(channels, filteredImage);
-//     cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
-//     return filteredImage;
-// }
-
 cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 {
     std::cout << "k: " << k << std::endl;
@@ -326,7 +288,13 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
+    int k = std::min(10, static_cast<int>(m_eigvals.size()));
+    std::cout << "Original eigvals: " << std::endl;
+    std::cout << m_eigvals.head(k) << std::endl;
+    
     Vec fS = transformEigenValues(m_eigvals, weights);
+    std::cout << "Transformed eigvals fS: " << std::endl << fS.head(k) << std::endl;
+    
     channels[0] = apply(channels[0], fS);
     // TODO: Check if we can do this inplace
     channels[0] = cv::max(channels[0], 0);
@@ -486,6 +454,9 @@ auto NLEFilter::orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DT
     std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
 #else
     std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
+    
+    std::cout << "Original # eigenvalues: " << Sq.rows() << " x " << Sq.cols() << std::endl;
+    
     int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
     Vq = Vq.leftCols(k).eval();
     Sq = Sq.head(k).eval();
@@ -546,28 +517,30 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     std::cout << "Sinkhorn" << std::endl;
     Mat Wa, Wab;
     std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
-    // Wa = (Wa + Wa.transpose()) / 2;
+     Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
-    Mat V;
-    Vec S;
-    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
-
-    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-    m_eigvecs = V.leftCols(nFilters).eval();
-    m_eigvals = S.head(nFilters).eval();
+//    Mat V;
+//    Vec S;
+//    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
+//    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
+//    m_eigvecs = V.leftCols(nFilters).eval();
+//    m_eigvals = S.head(nFilters).eval();
+    
+    std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
 
     // Permute values back into correct position
     m_eigvecs = (P * m_eigvecs).eval();
 
-    // for (int i = 0; i < nEigenVectors; i++) {
-    //     Vec v = m_eigvecs.col(i);
-    //     cv::Mat m = eigen2opencv(v, image.rows, image.cols);
-    //     m = rescaleForVisualization(m);
-    //     m.convertTo(m, CV_8U);
-    //     cv::imshow("image" + std::to_string(i), m);
-    // }
-    // cv::waitKey(-1);
+    for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
+         Vec v = m_eigvecs.col(i);
+        std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
+         cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+         m = rescaleForVisualization(m);
+         m.convertTo(m, CV_8U);
+         cv::imshow("image" + std::to_string(i), m);
+     }
+//     cv::waitKey(-1);
 }
 
 

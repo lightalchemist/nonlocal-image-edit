@@ -28,6 +28,11 @@ int main(int argc, char* argv[])
     for (auto i = 9; i < argc; ++i) {
         weights.push_back(std::stod(argv[i]));
     }
+    
+    for (auto w : weights) {
+        std::cout << w << ", ";
+    }
+    std::cout << std::endl;
 
     cv::Mat image = cv::imread(imagePath);
     if (image.empty()) {
@@ -36,10 +41,8 @@ int main(int argc, char* argv[])
     }
 
     auto filter = nle::NLEFilter();
-    filter.learnForDenoise(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
-    cv::Mat result = filter.denoise(image, weights[0]);
-    // filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
-    // cv::Mat result = filter.enhance(image, weights);
+    filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    cv::Mat result = filter.enhance(image, weights);
     std::cout << "Done. Press any key in result window to exit." << std::endl;
 
     cv::imwrite(outputPath, result);
