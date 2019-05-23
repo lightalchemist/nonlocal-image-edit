@@ -36,8 +36,10 @@ int main(int argc, char* argv[])
     }
 
     auto filter = nle::NLEFilter();
-    filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
-    cv::Mat result = filter.enhance(image, weights);
+    filter.learnForDenoise(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    cv::Mat result = filter.denoise(image, weights[0]);
+    // filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    // cv::Mat result = filter.enhance(image, weights);
     std::cout << "Done. Press any key in result window to exit." << std::endl;
 
     cv::imwrite(outputPath, result);

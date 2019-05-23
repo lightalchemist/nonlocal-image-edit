@@ -260,11 +260,55 @@ auto eigenDecomposition(const Mat& M, DType eps=EPS)
 //     return filteredImage;
 // }
 
-
-cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weights)
+cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 {
     if (image.channels() != 3) {
         throw std::runtime_error("Can only enchance RGB image.");
+    }
+
+    if (image.total() != m_eigvecs.rows()) {
+        throw std::runtime_error("Cannot apply filter on image with different size from the image filter was trained on.");
+    }
+
+    cv::Mat II;
+    cv::cvtColor(image, II, cv::COLOR_BGR2YUV);
+    std::vector<cv::Mat> channels;
+    cv::split(II, channels);
+    channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
+
+    Vec teigvals = Vec(m_eigvals.size());
+    for (int i = 1; i < teigvals.size(); i++) {
+        DType eval = teigvals(i);
+        teigvals(i) = std::pow(teigvals(i), k);
+    }
+
+    channels[1] = apply(channels[1], teigvals);
+    channels[2] = apply(channels[2], teigvals);
+
+    // TODO: Check if we can do this inplace
+    channels[0].convertTo(channels[0], CV_8U);
+    // channels[1] = cv::max(channels[1], 0);
+    // channels[1] = cv::min(channels[1], 255);
+    channels[1].convertTo(channels[1], CV_8U);
+    // channels[2] = cv::max(channels[2], 0);
+    // channels[2] = cv::min(channels[2], 255);
+    channels[2].convertTo(channels[2], CV_8U);
+
+    cv::Mat filteredImage;
+    cv::merge(channels, filteredImage);
+    cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
+
+    return filteredImage;
+}
+
+cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weights) const
+{
+    if (image.channels() != 3) {
+        throw std::runtime_error("Can only enchance RGB image.");
+    }
+
+    if (image.total() != m_eigvecs.rows()) {
+        throw std::runtime_error("Cannot apply filter on image with different size from the image filter was trained on.");
     }
 
     cv::Mat II;
@@ -273,7 +317,8 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
-    channels[0] = apply(channels[0], weights);
+    Vec fS = transformEigenValues(m_eigvals, weights);
+    channels[0] = apply(channels[0], fS);
     // TODO: Check if we can do this inplace
     channels[0] = cv::max(channels[0], 0);
     channels[0] = cv::min(channels[0], 255);
@@ -286,15 +331,14 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     return filteredImage;
 }
 
-cv::Mat NLEFilter::apply(const cv::Mat& channel, const std::vector<DType>& weights) const
+cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) const
 {
     if (channel.total() != m_eigvecs.rows()) {
         throw std::runtime_error("Number of values in channel must match that of training image.");
     }
 
-    Vec fS = transformEigenValues(m_eigvals, weights);
     Vec c = opencv2Eigen<DType>(channel);
-    Vec filtered = m_eigvecs * (fS.asDiagonal() * m_eigvecs.transpose() * c);
+    Vec filtered = m_eigvecs * (transformedEigVals.asDiagonal() * m_eigvecs.transpose() * c);
     return eigen2opencv(filtered, channel.rows, channel.cols);
 }
 
@@ -463,6 +507,17 @@ cv::Mat getLuminosityChannel(const cv::Mat& image)
     return luminosity;
 }
 
+cv::Mat getYChannel(const cv::Mat& image)
+{
+    cv::Mat yuv;
+    cv::cvtColor(image, yuv, cv::COLOR_BGR2YUV);
+    std::vector<cv::Mat> channels;
+    cv::split(yuv, channels);
+    channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
+    cv::Mat Y = channels[0];
+    return Y;
+}
+
 void
 NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSamples,
                                DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
@@ -496,12 +551,56 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     // Permute values back into correct position
     m_eigvecs = P * m_eigvecs;
 
-    for (int i = 0; i < nEigenVectors; i++) {
-        Vec v = m_eigvecs.col(i);
-        cv::Mat m = eigen2opencv(v, image.rows, image.cols);
-        m = rescaleForVisualization(m);
-        m.convertTo(m, CV_8U);
-        cv::imshow("image" + std::to_string(i), m);
-    }
-    cv::waitKey(-1);
+    // for (int i = 0; i < nEigenVectors; i++) {
+    //     Vec v = m_eigvecs.col(i);
+    //     cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+    //     m = rescaleForVisualization(m);
+    //     m.convertTo(m, CV_8U);
+    //     cv::imshow("image" + std::to_string(i), m);
+    // }
+    // cv::waitKey(-1);
+}
+
+
+void
+NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
+                           DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+{
+    cv::Mat Y = getYChannel(image);
+
+    std::cout << "Computing kernel" << std::endl;
+    Mat Ka, Kab;
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P;
+    std::tie(P, Ka, Kab) = computeKernelWeights(Y, nRowSamples, nColSamples, hx, hy);
+
+    std::cout << "Nystrom approximation" << std::endl;
+    Vec eigvals;
+    Mat phi;
+    std::tie(eigvals, phi) = nystromApproximation(Ka, Kab);
+
+    std::cout << "Sinkhorn" << std::endl;
+    Mat Wa, Wab;
+    std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
+    // Wa = (Wa + Wa.transpose()) / 2;
+
+    std::cout << "Orthogonalize" << std::endl;
+    Mat V;
+    Vec S;
+    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
+
+    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
+    m_eigvecs = V.leftCols(nFilters);
+    m_eigvals = S.head(nFilters);
+
+    // Permute values back into correct position
+    m_eigvecs = P * m_eigvecs;
+
+    // for (int i = 0; i < nEigenVectors; i++) {
+    //     Vec v = m_eigvecs.col(i);
+    //     cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+    //     m = rescaleForVisualization(m);
+    //     m.convertTo(m, CV_8U);
+    //     cv::imshow("image" + std::to_string(i), m);
+    // }
+    // cv::waitKey(-1);
 }

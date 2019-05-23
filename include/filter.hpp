@@ -40,12 +40,13 @@ namespace nle {
         public:
             void learnForEnhancement(const cv::Mat& image,
                                      int nRowSamples, int nColSamples,
-                                     DType hx, DType hy,
-                                     int nSinkhornIter=10, int nEigenVectors=5);
+                                     DType hx, DType hy, int nSinkhornIter=10, int nEigenVectors=5);
 
-            cv::Mat enhance(const cv::Mat& I, const std::vector<DType>& weights);
-            // cv::Mat denoise(const cv::Mat& I);
+            void learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
+                                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors);
 
+            cv::Mat enhance(const cv::Mat& I, const std::vector<DType>& weights) const;
+            cv::Mat denoise(const cv::Mat& I, DType k) const;
 
         private:
             auto computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
@@ -54,9 +55,8 @@ namespace nle {
                 sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter=10, DType eps=EPS) const;
             auto nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps = EPS) const;
             auto orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS) const;
-            cv::Mat apply(const cv::Mat& channel, const std::vector<DType>& weights) const;
+            cv::Mat apply(const cv::Mat& channel, const Vec& transformedEigVals) const;
 
-            // Reference to eigenvectors and eigenvalues
             Mat m_eigvecs;
             Vec m_eigvals;
     };
