@@ -262,6 +262,8 @@ auto eigenDecomposition(const Mat& M, DType eps=EPS)
 
 cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 {
+    std::cout << "k: " << k << std::endl;
+
     if (image.channels() != 3) {
         throw std::runtime_error("Can only enchance RGB image.");
     }
@@ -272,14 +274,16 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 
     cv::Mat II;
     cv::cvtColor(image, II, cv::COLOR_BGR2YUV);
+    // cv::cvtColor(image, II, cv::COLOR_BGR2Lab);
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
     Vec teigvals = Vec(m_eigvals.size());
-    for (int i = 1; i < teigvals.size(); i++) {
+    for (int i = 0; i < teigvals.size(); i++) {
         DType eval = teigvals(i);
-        teigvals(i) = std::pow(teigvals(i), k);
+        std::cout << "eig " << i << " val: " << eval << std::endl;
+        teigvals(i) = std::pow(eval, k);
     }
 
     channels[1] = apply(channels[1], teigvals);
@@ -294,9 +298,12 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     // channels[2] = cv::min(channels[2], 255);
     channels[2].convertTo(channels[2], CV_8U);
 
+    cv::imshow("luminosity channel", channels[0]);
+
     cv::Mat filteredImage;
     cv::merge(channels, filteredImage);
     cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
+    // cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
 
     return filteredImage;
 }
