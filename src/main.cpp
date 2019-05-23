@@ -35,9 +35,11 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    cv::Mat result = nle::filterImage(image, weights, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);    
+    auto filter = nle::NLEFilter();
+    filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    cv::Mat result = filter.enhance(image, weights);
     std::cout << "Done. Press any key in result window to exit." << std::endl;
-    
+
     cv::imwrite(outputPath, result);
     cv::imshow("Result", result);
     cv::waitKey(-1);
