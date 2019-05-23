@@ -528,6 +528,14 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
 //    m_eigvals = S.head(nFilters).eval();
     
     std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
+    
+    int k = std::min(int(m_eigvals.size()), 5);
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
+            std::cout << "v" << i << " dot " << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
+        }
+    }
+    
 
     // Permute values back into correct position
     m_eigvecs = (P * m_eigvecs).eval();
@@ -540,7 +548,6 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
          m.convertTo(m, CV_8U);
          cv::imshow("image" + std::to_string(i), m);
      }
-//     cv::waitKey(-1);
 }
 
 
