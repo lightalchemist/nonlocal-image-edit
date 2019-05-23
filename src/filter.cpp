@@ -180,7 +180,7 @@ auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS)
     for (r = 0; r < eigvals.size() && eigvals(r) >= eps; ++r);
     if (r < eigvals.size()) {
         Mat evecs = eigvecs.leftCols(r);
-        Vec evals = evals.head(r);
+        Vec evals = eigvals.head(r);
         return std::make_pair(evecs, evals);
     }
     else {
@@ -200,7 +200,7 @@ auto eigenDecomposition(const Mat& M, DType eps=EPS)
     int rank = svd.rank();
     int r = 0;
     for (r = 0; r < rank && D(r) >= eps; ++r);
-    D = svd.singularValues().head(r);
+    D = (svd.singularValues().head(r)).eval();
     Mat U = svd.matrixU().leftCols(r);
     Mat V = svd.matrixV().leftCols(r);
 
@@ -278,6 +278,8 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
+    channels[1].convertTo(channels[1], OPENCV_MAT_TYPE);
+    channels[2].convertTo(channels[2], OPENCV_MAT_TYPE);
 
     Vec teigvals = Vec(m_eigvals.size());
     for (int i = 0; i < teigvals.size(); i++) {
@@ -445,7 +447,7 @@ auto NLEFilter::nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps) c
     Vec tmp = eigvals;
     int numNonZero = robustInplaceReciprocal(tmp);
     Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals = tmp.head(numNonZero).asDiagonal();
-    eigvecs = eigvecs.leftCols(numNonZero);
+    eigvecs = eigvecs.leftCols(numNonZero).eval();
 
     int n = Ka.cols() + Kab.cols();
     Mat phi(n, eigvecs.cols());
@@ -485,8 +487,8 @@ auto NLEFilter::orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DT
 #else
     std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
     int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
-    Vq = Vq.leftCols(k);
-    Sq = Sq.head(k);
+    Vq = Vq.leftCols(k).eval();
+    Sq = Sq.head(k).eval();
 #endif
 
     Vec invRootSq = Sq;
@@ -552,11 +554,11 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
 
     int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-    m_eigvecs = V.leftCols(nFilters);
-    m_eigvals = S.head(nFilters);
+    m_eigvecs = V.leftCols(nFilters).eval();
+    m_eigvals = S.head(nFilters).eval();
 
     // Permute values back into correct position
-    m_eigvecs = P * m_eigvecs;
+    m_eigvecs = (P * m_eigvecs).eval();
 
     // for (int i = 0; i < nEigenVectors; i++) {
     //     Vec v = m_eigvecs.col(i);
@@ -596,11 +598,11 @@ NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSample
     std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
 
     int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-    m_eigvecs = V.leftCols(nFilters);
-    m_eigvals = S.head(nFilters);
+    m_eigvecs = V.leftCols(nFilters).eval();
+    m_eigvals = S.head(nFilters).eval();
 
     // Permute values back into correct position
-    m_eigvecs = P * m_eigvecs;
+    m_eigvecs = (P * m_eigvecs).eval();
 
     // for (int i = 0; i < nEigenVectors; i++) {
     //     Vec v = m_eigvecs.col(i);
