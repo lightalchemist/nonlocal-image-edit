@@ -1,3 +1,4 @@
+#pragma once
 #ifndef FILTER_HPP
 #define FILTER_HPP
 
@@ -460,6 +461,11 @@ learnFilter(const cv::Mat& mat, std::vector<T>& weights, int nRowSamples, int nC
     V = P * V;
     int nFilters = std::min(nEigenVectors, static_cast<int>(fS.rows()));
     return std::make_pair(V.leftCols(nFilters), fS.topRows(nFilters).asDiagonal());
+}
+
+
+cv::Mat applyFilter(cv::Mat& M) {
+
 }
 
 cv::Mat filterImage(const cv::Mat& mat, std::vector<DType>& weights,
