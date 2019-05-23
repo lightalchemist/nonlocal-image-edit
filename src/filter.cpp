@@ -294,8 +294,14 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     
     Vec fS = transformEigenValues(m_eigvals, weights);
     std::cout << "Transformed eigvals fS: " << std::endl << fS.head(k) << std::endl;
+
+    channels[0] = channels[0] / 255.0 * 100.0;
     
     channels[0] = apply(channels[0], fS);
+
+    channels[0] = channels[0] / 100.0 * 255.0;
+
+
     // TODO: Check if we can do this inplace
     channels[0] = cv::max(channels[0], 0);
     channels[0] = cv::min(channels[0], 255);
@@ -503,6 +509,9 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
                                DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
     cv::Mat luminosity = getLuminosityChannel(image);
+
+    // Scale back to 0 - 100 range before processing
+    luminosity = luminosity / 255.0 * 100.0;
 
     std::cout << "Computing kernel" << std::endl;
     Mat Ka, Kab;

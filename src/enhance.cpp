@@ -56,5 +56,9 @@ int main(int argc, char* argv[])
     cv::imshow("Result", result);
     cv::waitKey(-1);
 
+    // TODO: Debug by manually projecting to eigenvectors and reconstructing to see result.
+    // NOTE: Seems like scaling the luminosity channel before hand belps.
+    // NOTE: Manually perform filtering Wy and visualize I - Wy etc.
+
     return 0;
 }
