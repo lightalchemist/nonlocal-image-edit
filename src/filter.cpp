@@ -160,6 +160,8 @@ invertDiagMatrix(const Mat& mat, DType eps = EPS)
 #ifdef USE_SPECTRA
 auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps = EPS)
 {
+    std::cout << "SPECTRA topk eigenvectors" << std::endl;
+    
     nLargest = std::min(nLargest, static_cast<int>(M.rows() - 1));
     assert(nLargest > 0);
     int ncv = std::min(2 * nLargest, static_cast<int>(M.rows()));
