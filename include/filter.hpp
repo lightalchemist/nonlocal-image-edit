@@ -30,7 +30,8 @@ namespace nle {
     using Mat = Eigen::MatrixXd;
     using DType = double;
     const auto OPENCV_MAT_TYPE = CV_64F;
-    const double EPS = 1e-10;
+    // const double EPS = 1e-10;
+    const double EPS = 1e-18;
     struct Point {
         int row;
         int col;

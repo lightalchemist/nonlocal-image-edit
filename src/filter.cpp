@@ -30,8 +30,12 @@ cv::Mat eigen2opencv(Vec& v, int nrows, int ncols)
 template <typename T>
 Vec opencv2Eigen(const cv::Mat& mat)
 {
-    Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> lv;
-    lv.resize(mat.total(), 1);
+    // Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> lv;
+    Vec lv(mat.total());
+
+    std::cout << "lv size: " << lv.size() << std::endl;
+    // Vec lv;
+    // lv.resize(mat.total(), 1);
     int k = 0;
     for (int i = 0; i < mat.rows; i++) {
         for (int j = 0; j < mat.cols; j++) {
@@ -160,7 +164,8 @@ invertDiagMatrix(const Mat& mat, DType eps = EPS)
 #ifdef USE_SPECTRA
 auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS)
 {
-    nLargest = std::min(nLargest, static_cast<int>(M.rows()));
+    nLargest = std::min(nLargest, static_cast<int>(M.rows() - 1));
+    assert(nLargest > 0);
     int ncv = std::min(2 * nLargest, static_cast<int>(M.rows()));
     Spectra::DenseGenMatProd<DType> op_largest(M);
     Spectra::SymEigsSolver<DType, Spectra::LARGEST_MAGN, Spectra::DenseGenMatProd<DType>>
@@ -292,16 +297,17 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     std::cout << "Original eigvals: " << std::endl;
     std::cout << m_eigvals.head(k) << std::endl;
     
-    Vec fS = transformEigenValues(m_eigvals, weights);
+    // Vec fS = transformEigenValues(m_eigvals, weights);
+    Vec fS = m_eigvals;
     std::cout << "Transformed eigvals fS: " << std::endl << fS.head(k) << std::endl;
 
 //    channels[0] = channels[0] / 255.0 * 100.0;
-    channels[0] = channels[0] / 255.0;
+    // channels[0] = channels[0] / 255.0;
 
     channels[0] = apply(channels[0], fS);
 
 //    channels[0] = channels[0] / 100.0 * 255.0;
-    channels[0] = channels[0] * 255.0;
+    // channels[0] = channels[0] * 255.0;
 
     // TODO: Check if we can do this inplace
     channels[0] = cv::max(channels[0], 0);
@@ -341,18 +347,21 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
     Mat Kab(nSamples, nPixels - nSamples);
 
     DType photometricWeight = 1.0 / (hy * hy);
-    DType spatialWeight = 1.0 / (hx * hx);
+    // DType spatialWeight = 1.0 / (hx * hx);
+    DType spatialWeight = 0;
     for (auto i = 0u; i < selected.size(); ++i) {
         // Ka
         Point p1 = selected[i];
         for (auto j = i; j < selected.size(); ++j) {
-            auto val = negativeWeightedDistance(mat, p1, selected[j], spatialWeight, photometricWeight);
+            // auto val = negativeWeightedDistance(mat, p1, selected[j], spatialWeight, photometricWeight);
+            auto val = kernel(mat, p1, selected[j], spatialWeight, photometricWeight);
             Ka(i, j) = val;
             Ka(j, i) = val;
         }
         // Kab
         for (auto j = 0u; j < rest.size(); j++) {
-            Kab(i, j) = negativeWeightedDistance(mat, p1, rest[j], spatialWeight, photometricWeight);
+            // Kab(i, j) = negativeWeightedDistance(mat, p1, rest[j], spatialWeight, photometricWeight);
+            Kab(i, j) = kernel(mat, p1, rest[j], spatialWeight, photometricWeight);
         }
     }
 
@@ -360,8 +369,8 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
     // Convert Ka and Kab to kernels
     // Ka = Ka.array().exp();
     // Kab = Kab.array().exp();
-    Ka.array() = Ka.array().exp();
-    Kab.array() = Kab.array().exp();
+    // Ka.array() = Ka.array().exp();
+    // Kab.array() = Kab.array().exp();
 
 #ifndef NDEBUG
     assert(Ka.isApprox(Ka.transpose()));
@@ -421,6 +430,10 @@ auto NLEFilter::nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps) c
     // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
     Vec tmp = eigvals;
     int numNonZero = robustInplaceReciprocal(tmp);
+
+    // Vec tmp = eigvals.inverse();
+    // int numNonZero = tmp.size();
+
     Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals = tmp.head(numNonZero).asDiagonal();
     eigvecs = eigvecs.leftCols(numNonZero).eval();
 
@@ -513,7 +526,7 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
 
     // Scale back to 0 - 100 range before processing
 //    luminosity = luminosity / 255.0 * 100.0;
-    luminosity = luminosity / 255.0;
+    // luminosity = luminosity / 255.0;
     
 
     std::cout << "Computing kernel" << std::endl;
@@ -529,29 +542,29 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     std::cout << "Sinkhorn" << std::endl;
     Mat Wa, Wab;
     std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
-     Wa = (Wa + Wa.transpose()).eval() / 2;
+     // Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
-//    Mat V;
-//    Vec S;
-//    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
-//    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-//    m_eigvecs = V.leftCols(nFilters).eval();
-//    m_eigvals = S.head(nFilters).eval();
+   Mat V;
+   Vec S;
+   std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
+   int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
+   m_eigvecs = V.leftCols(nFilters).eval();
+   m_eigvals = S.head(nFilters).eval();
     
-    std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
+    // std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
     
-    int k = std::min(int(m_eigvals.size()), 5);
+
+    // Permute values back into correct position
+    m_eigvecs = (P * m_eigvecs).eval();
+
+    int k = std::min(int(m_eigvals.size()), 7);
     for (int i = 0; i < k; i++) {
         for (int j = 0; j < k; j++) {
             std::cout << "v" << i << " dot " << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
         }
     }
     
-
-    // Permute values back into correct position
-    m_eigvecs = (P * m_eigvecs).eval();
-
     for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
          Vec v = m_eigvecs.col(i);
         std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
