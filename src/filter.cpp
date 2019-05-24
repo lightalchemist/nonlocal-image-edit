@@ -1,13 +1,12 @@
 #include "filter.hpp"
 
-using nle::NLEFilter;
-using nle::Vec;
-using nle::Mat;
-using nle::Point;
 using nle::DType;
-using nle::OPENCV_MAT_TYPE;
 using nle::EPS;
-
+using nle::Mat;
+using nle::NLEFilter;
+using nle::OPENCV_MAT_TYPE;
+using nle::Point;
+using nle::Vec;
 
 #include <opencv2/highgui.hpp>
 
@@ -67,10 +66,7 @@ auto samplePixels(int nrows, int ncols, int nRowSamples, int nColSamples)
     rest.reserve(nrows * ncols - nRowSamples * nColSamples);
     for (int r = 0; r < nrows; r++) {
         for (int c = 0; c < ncols; c++) {
-            if ((r >= rowOffset && c >= colOffset) && 
-                ((r - rowOffset) % rowStep == 0) && 
-                ((c - colOffset) % colStep == 0) && 
-                r <= (nrows - rowOffset) && c <= (ncols - colOffset)) {
+            if ((r >= rowOffset && c >= colOffset) && ((r - rowOffset) % rowStep == 0) && ((c - colOffset) % colStep == 0) && r <= (nrows - rowOffset) && c <= (ncols - colOffset)) {
                 selected.push_back(Point{ r, c });
             } else {
                 rest.push_back(Point{ r, c });
@@ -94,7 +90,7 @@ void plotSampledPoints(cv::Mat& mat, int nRowSamples, int nColSamples)
 }
 
 DType kernel(const cv::Mat& mat, const Point& p1, const Point& p2,
-             DType spatialWeight, DType photometricWeight)
+    DType spatialWeight, DType photometricWeight)
 {
     DType yr = mat.at<DType>(p1.row, p1.col);
     DType ys = mat.at<DType>(p2.row, p2.col);
@@ -104,7 +100,7 @@ DType kernel(const cv::Mat& mat, const Point& p1, const Point& p2,
 }
 
 DType negativeWeightedDistance(const cv::Mat& mat, const Point& p1, const Point& p2,
-                               DType spatialWeight, DType photometricWeight)
+    DType spatialWeight, DType photometricWeight)
 {
     DType yr = mat.at<DType>(p1.row, p1.col);
     DType ys = mat.at<DType>(p2.row, p2.col);
@@ -162,7 +158,7 @@ invertDiagMatrix(const Mat& mat, DType eps = EPS)
 }
 
 #ifdef USE_SPECTRA
-auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS)
+auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps = EPS)
 {
     nLargest = std::min(nLargest, static_cast<int>(M.rows() - 1));
     assert(nLargest > 0);
@@ -182,29 +178,29 @@ auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps=EPS)
 
     // Keep only eigenvalues larger than threshold
     int r = 0;
-    for (r = 0; r < eigvals.size() && eigvals(r) >= eps; ++r);
+    for (r = 0; r < eigvals.size() && eigvals(r) >= eps; ++r)
+        ;
     if (r < eigvals.size()) {
         Mat evecs = eigvecs.leftCols(r);
         Vec evals = eigvals.head(r);
         return std::make_pair(evecs, evals);
-    }
-    else {
+    } else {
         return std::make_pair(eigvecs, eigvals);
     }
-
 }
 #endif
 
 // TODO: Implement move semantic version of this to improve
 // memory performance of orthogonalize
-auto eigenDecomposition(const Mat& M, DType eps=EPS)
+auto eigenDecomposition(const Mat& M, DType eps = EPS)
 {
     // Compute eigen factorization of a PSD matrix
     Eigen::JacobiSVD<Mat> svd(M, Eigen::ComputeThinU | Eigen::ComputeThinV);
     Vec D = svd.singularValues();
     int rank = svd.rank();
     int r = 0;
-    for (r = 0; r < rank && D(r) >= eps; ++r);
+    for (r = 0; r < rank && D(r) >= eps; ++r)
+        ;
     D = (svd.singularValues().head(r)).eval();
     Mat U = svd.matrixU().leftCols(r);
     Mat V = svd.matrixV().leftCols(r);
@@ -296,17 +292,18 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     int k = std::min(10, static_cast<int>(m_eigvals.size()));
     std::cout << "Original eigvals: " << std::endl;
     std::cout << m_eigvals.head(k) << std::endl;
-    
+
     // Vec fS = transformEigenValues(m_eigvals, weights);
     Vec fS = m_eigvals;
-    std::cout << "Transformed eigvals fS: " << std::endl << fS.head(k) << std::endl;
+    std::cout << "Transformed eigvals fS: " << std::endl
+              << fS.head(k) << std::endl;
 
-//    channels[0] = channels[0] / 255.0 * 100.0;
+    //    channels[0] = channels[0] / 255.0 * 100.0;
     // channels[0] = channels[0] / 255.0;
 
     channels[0] = apply(channels[0], fS);
 
-//    channels[0] = channels[0] / 100.0 * 255.0;
+    //    channels[0] = channels[0] / 100.0 * 255.0;
     // channels[0] = channels[0] * 255.0;
 
     // TODO: Check if we can do this inplace
@@ -333,7 +330,7 @@ cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) 
 }
 
 auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
-                                     DType hx, DType hy) const
+    DType hx, DType hy) const
 {
     if (nRowSamples > mat.rows || nColSamples > mat.cols) {
         throw std::runtime_error("Number of samples per row and col must be <= that of image.");
@@ -454,7 +451,7 @@ auto NLEFilter::orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DT
     invRootEigVals = invRootEigVals.cwiseSqrt();
     Mat invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
     // NOTE: the parentheses around Wab and Wab^T is crucial for ensuring that expression
-    // gets evaluated first to become a small p x p matrix, otherwise the compiler might 
+    // gets evaluated first to become a small p x p matrix, otherwise the compiler might
     // generate two copies intermediate matrices of size p x n and n x p respectively.
     Mat Q = Wa + invRootWa * (Wab * Wab.transpose()) * invRootWa;
 
@@ -474,9 +471,9 @@ auto NLEFilter::orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DT
     std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
 #else
     std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
-    
+
     std::cout << "Original # eigenvalues: " << Sq.rows() << " x " << Sq.cols() << std::endl;
-    
+
     int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
     Vq = Vq.leftCols(k).eval();
     Sq = Sq.head(k).eval();
@@ -518,16 +515,14 @@ cv::Mat getYChannel(const cv::Mat& image)
     return Y;
 }
 
-void
-NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSamples,
-                               DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSamples,
+    DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
     cv::Mat luminosity = getLuminosityChannel(image);
 
     // Scale back to 0 - 100 range before processing
-//    luminosity = luminosity / 255.0 * 100.0;
+    //    luminosity = luminosity / 255.0 * 100.0;
     // luminosity = luminosity / 255.0;
-    
 
     std::cout << "Computing kernel" << std::endl;
     Mat Ka, Kab;
@@ -542,18 +537,17 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     std::cout << "Sinkhorn" << std::endl;
     Mat Wa, Wab;
     std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
-     // Wa = (Wa + Wa.transpose()).eval() / 2;
+    // Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
-   Mat V;
-   Vec S;
-   std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
-   int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-   m_eigvecs = V.leftCols(nFilters).eval();
-   m_eigvals = S.head(nFilters).eval();
-    
+    Mat V;
+    Vec S;
+    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
+    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
+    m_eigvecs = V.leftCols(nFilters).eval();
+    m_eigvals = S.head(nFilters).eval();
+
     // std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
-    
 
     // Permute values back into correct position
     m_eigvecs = (P * m_eigvecs).eval();
@@ -561,24 +555,23 @@ NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSa
     int k = std::min(int(m_eigvals.size()), 7);
     for (int i = 0; i < k; i++) {
         for (int j = 0; j < k; j++) {
-            std::cout << "v" << i << " dot " << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
+            std::cout << "v" << i << " dot "
+                      << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
         }
     }
-    
+
     for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
-         Vec v = m_eigvecs.col(i);
+        Vec v = m_eigvecs.col(i);
         std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
-         cv::Mat m = eigen2opencv(v, image.rows, image.cols);
-         m = rescaleForVisualization(m);
-         m.convertTo(m, CV_8U);
-         cv::imshow("image" + std::to_string(i), m);
-     }
+        cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+        m = rescaleForVisualization(m);
+        m.convertTo(m, CV_8U);
+        cv::imshow("image" + std::to_string(i), m);
+    }
 }
 
-
-void
-NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
-                           DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+void NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
+    DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
     cv::Mat Y = getYChannel(image);
 
