@@ -1,6 +1,7 @@
 #include "filter.hpp"
 #include "utils.hpp"
 
+#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
 using nle::DType;
@@ -154,36 +155,44 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     // cv::cvtColor(image, II, cv::COLOR_BGR2Lab);
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
+
+    cv::Mat originalY = channels[0];
+
+    cv::Mat Y;
+    cv::bilateralFilter(channels[0], Y, -1, 30, 30, cv::BORDER_DEFAULT);
+    channels[0] = Y;
+
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
     channels[1].convertTo(channels[1], OPENCV_MAT_TYPE);
     channels[2].convertTo(channels[2], OPENCV_MAT_TYPE);
 
-    Vec teigvals = Vec(m_eigvals.size());
+    Vec teigvals = m_eigvals;
     for (int i = 0; i < teigvals.size(); i++) {
         DType eval = teigvals(i);
         std::cout << "eig " << i << " val: " << eval << std::endl;
         teigvals(i) = std::pow(eval, k);
     }
 
+    // channels[0] = apply(channels[0], teigvals);
     channels[1] = apply(channels[1], teigvals);
     channels[2] = apply(channels[2], teigvals);
 
-    // TODO: Check if we can do this inplace
+    channels[0] = cv::max(channels[0], 0);
+    channels[0] = cv::min(channels[0], 255);
     channels[0].convertTo(channels[0], CV_8U);
-    // channels[1] = cv::max(channels[1], 0);
-    // channels[1] = cv::min(channels[1], 255);
+    channels[1] = cv::max(channels[1], 0);
+    channels[1] = cv::min(channels[1], 255);
     channels[1].convertTo(channels[1], CV_8U);
-    // channels[2] = cv::max(channels[2], 0);
-    // channels[2] = cv::min(channels[2], 255);
+    channels[2] = cv::max(channels[2], 0);
+    channels[2] = cv::min(channels[2], 255);
     channels[2].convertTo(channels[2], CV_8U);
 
     cv::imshow("luminosity channel", channels[0]);
+    cv::imshow("Original luminosity channel", originalY);
 
     cv::Mat filteredImage;
     cv::merge(channels, filteredImage);
     cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
-    // cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
-
     return filteredImage;
 }
 
@@ -232,8 +241,9 @@ cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) 
     return eigen2opencv(filtered, channel.rows, channel.cols);
 }
 
-auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
-    DType hx, DType hy) const
+namespace nle {
+std::tuple<Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic>, Mat, Mat> 
+computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples, DType hx, DType hy)
 {
     if (nRowSamples > mat.rows || nColSamples > mat.cols) {
         throw std::runtime_error("Number of samples per row and col must be <= that of image.");
@@ -286,7 +296,8 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
     return std::make_tuple(P, Ka, Kab);
 }
 
-namespace nle {
+
+
     // TODO: Implement move semantic version of this to improve
     // memory performance of orthogonalize
     std::pair<Mat, Vec> 
@@ -437,9 +448,12 @@ cv::Mat getYChannel(const cv::Mat& image)
     cv::cvtColor(image, yuv, cv::COLOR_BGR2YUV);
     std::vector<cv::Mat> channels;
     cv::split(yuv, channels);
-    channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
-    cv::Mat Y = channels[0];
-    return Y;
+
+    cv::Mat denoised;
+    cv::bilateralFilter(channels[0], denoised, -1, 30, 30, cv::BORDER_DEFAULT);
+
+    denoised.convertTo(denoised, OPENCV_MAT_TYPE);
+    return denoised;
 }
 
 void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSamples,
@@ -478,6 +492,7 @@ void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int n
     }
 }
 
+
 void NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
                                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
@@ -496,26 +511,20 @@ void NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColS
     std::cout << "Sinkhorn" << std::endl;
     Mat Wa, Wab;
     std::tie(Wa, Wab) = sinkhornKnopp(phi, eigvals, nSinkhornIter);
-    // Wa = (Wa + Wa.transpose()) / 2;
+    Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
-    Mat V;
-    Vec S;
-    std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
-
-    int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-    m_eigvecs = V.leftCols(nFilters).eval();
-    m_eigvals = S.head(nFilters).eval();
+    std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
 
     // Permute values back into correct position
     m_eigvecs = (P * m_eigvecs).eval();
 
-    // for (int i = 0; i < nEigenVectors; i++) {
-    //     Vec v = m_eigvecs.col(i);
-    //     cv::Mat m = eigen2opencv(v, image.rows, image.cols);
-    //     m = rescaleForVisualization(m);
-    //     m.convertTo(m, CV_8U);
-    //     cv::imshow("image" + std::to_string(i), m);
-    // }
-    // cv::waitKey(-1);
+    for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
+        Vec v = m_eigvecs.col(i);
+        std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
+        cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+        m = rescaleForVisualization(m);
+        m.convertTo(m, CV_8U);
+        cv::imshow("image" + std::to_string(i), m);
+    }
 }

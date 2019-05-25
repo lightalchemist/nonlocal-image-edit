@@ -10,10 +10,6 @@
 #include <vector>
 
 #include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-#ifndef NDEBUG
-#include <opencv2/highgui.hpp>
-#endif
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -37,6 +33,10 @@ namespace nle {
         int col;
     };
 
+    std::tuple<Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic>, Mat, Mat> 
+    computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
+                         DType hx, DType hy);
+
     std::pair<Mat, Vec> 
     eigenDecomposition(const Mat& M, DType eps=EPS);
 
@@ -48,6 +48,8 @@ namespace nle {
 
     std::pair<Mat, Vec> 
     orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS);
+
+
 
     class NLEFilter {
         public:
@@ -62,8 +64,6 @@ namespace nle {
             cv::Mat denoise(const cv::Mat& I, DType k) const;
 
         private:
-            auto computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
-                                      DType hx, DType hy) const;
             // auto orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS) const;
             cv::Mat apply(const cv::Mat& channel, const Vec& transformedEigVals) const;
 

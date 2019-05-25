@@ -12,7 +12,7 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 13) {
+    if (argc < 10) {
         std::cerr << "Usage: " << argv[0] << " <image> <output> <# row samples> <# col samples> <hx> <hy> <# sinkhorn iterations> <# eigen vectors> <weight 1> <weight 2> <weight 3> <weight 4>" << std::endl;
         return 0;
     }
