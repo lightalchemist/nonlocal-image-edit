@@ -23,17 +23,20 @@ cv::Mat rescaleForVisualization(const cv::Mat& mat)
 
 auto samplePixels(int nrows, int ncols, int nRowSamples, int nColSamples)
 {
-    int rowStep = nrows / nRowSamples;
-    int colStep = ncols / nColSamples;
-    int rowOffset = (rowStep - 1 + (nrows - rowStep * nRowSamples)) / 2;
-    int colOffset = (colStep - 1 + (ncols - colStep * nColSamples)) / 2;
+    const int rowStep = nrows / nRowSamples;
+    const int colStep = ncols / nColSamples;
+    const int rowOffset = (rowStep - 1 + (nrows - rowStep * nRowSamples)) / 2;
+    const int colOffset = (colStep - 1 + (ncols - colStep * nColSamples)) / 2;
 
     std::vector<Point> selected, rest;
     selected.reserve(nRowSamples * nColSamples);
     rest.reserve(nrows * ncols - nRowSamples * nColSamples);
     for (int r = 0; r < nrows; r++) {
         for (int c = 0; c < ncols; c++) {
-            if ((r >= rowOffset && c >= colOffset) && ((r - rowOffset) % rowStep == 0) && ((c - colOffset) % colStep == 0) && r <= (nrows - rowOffset) && c <= (ncols - colOffset)) {
+            if ((r >= rowOffset && c >= colOffset) && r <= (nrows - rowOffset) && c <= (ncols - colOffset) &&
+                ((r - rowOffset) % rowStep == 0) && 
+                ((c - colOffset) % colStep == 0) 
+                ) {
                 selected.push_back(Point{ r, c });
             } else {
                 rest.push_back(Point{ r, c });
