@@ -227,7 +227,7 @@ cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) 
         throw std::runtime_error("Number of values in channel must match that of training image.");
     }
 
-    Vec c = opencv2Eigen<DType>(channel);
+    Vec c = opencv2eigen<DType>(channel);
     Vec filtered = m_eigvecs * (transformedEigVals.asDiagonal() * m_eigvecs.transpose() * c);
     return eigen2opencv(filtered, channel.rows, channel.cols);
 }

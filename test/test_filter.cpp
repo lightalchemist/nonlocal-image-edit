@@ -11,21 +11,21 @@ TEST_CASE("OpenCV and Eigen conversions", "[utils]")
 {
     SECTION("Size match") {
         cv::Mat m = cv::Mat::ones(2, 5, nle::OPENCV_MAT_TYPE);
-        nle::Vec v1 = nle::opencv2Eigen<nle::DType>(m);
+        nle::Vec v1 = nle::opencv2eigen<nle::DType>(m);
         CHECK(v1.size() == 10);
 
     }
 
     SECTION("All ones") {
         cv::Mat m = cv::Mat::ones(2, 5, nle::OPENCV_MAT_TYPE);
-        nle::Vec v1 = nle::opencv2Eigen<nle::DType>(m);
+        nle::Vec v1 = nle::opencv2eigen<nle::DType>(m);
         nle::Vec v2 = nle::Vec::Ones(10);
         CHECK(v1.isApprox(v2, tol));
     }
 
     SECTION("Sequence") {
         cv::Mat m = (cv::Mat_<nle::DType>(3,3) << 1, 2, 3, 4, 5, 6, 7, 8, 9);
-        nle::Vec v1 = nle::opencv2Eigen<nle::DType>(m);
+        nle::Vec v1 = nle::opencv2eigen<nle::DType>(m);
         nle::Vec v2 = Eigen::ArrayXd::LinSpaced(9, 1, 9);
         CHECK(v1.size() == 9);
         CHECK(v1.isApprox(v2, tol));
@@ -33,7 +33,7 @@ TEST_CASE("OpenCV and Eigen conversions", "[utils]")
 
     SECTION("OpenCV to Eigen and back") {
         cv::Mat m1 = (cv::Mat_<nle::DType>(3,3) << 1, 2, 3, 4, 5, 6, 7, 8, 9);
-        nle::Vec v1 = nle::opencv2Eigen<nle::DType>(m1);
+        nle::Vec v1 = nle::opencv2eigen<nle::DType>(m1);
         cv::Mat m2 = nle::eigen2opencv(v1, m1.rows, m1.cols);
         CHECK(std::equal(m1.begin<nle::DType>(), m1.end<nle::DType>(), m2.begin<nle::DType>()));
     }
