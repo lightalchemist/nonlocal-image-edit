@@ -11,6 +11,7 @@
 
 int main(int argc, char* argv[])
 {
+    // TODO: Replace with proper argument parser
     if (argc < 10) {
         std::cerr << "Usage: " << argv[0] << " <image> <output> <# row samples> <# col samples> <hx> <hy> <# sinkhorn iterations> <# eigen vectors> <weight 1> <weight 2> <weight 3> <weight 4>" << std::endl;
         return 0;
@@ -28,11 +29,6 @@ int main(int argc, char* argv[])
     for (auto i = 9; i < argc; ++i) {
         weights.push_back(std::stod(argv[i]));
     }
-    
-    for (auto w : weights) {
-        std::cout << w << ", ";
-    }
-    std::cout << std::endl;
 
     cv::Mat image = cv::imread(imagePath);
     if (image.empty()) {
@@ -41,13 +37,11 @@ int main(int argc, char* argv[])
     }
 
     auto filter = nle::NLEFilter();
-    
-    cv::Mat imageAsDouble;
-    
+
     // See this link for effect of matrix type on output range of Lab conversion.
     // https://stackoverflow.com/questions/11386556/converting-an-opencv-bgr-8-bit-image-to-cie-lab
 //    image.convertTo(imageAsDouble, CV_64F);
-    
+
     filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
     cv::Mat result = filter.enhance(image, weights);
     std::cout << "Done. Press any key in result window to exit." << std::endl;

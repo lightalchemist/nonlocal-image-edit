@@ -5,11 +5,10 @@
 
 #include <algorithm>
 
-const double tol = 1e-20;
+const double tol = 1e-10;
 
 TEST_CASE("OpenCV and Eigen conversions", "[utils]")
 {
-
     SECTION("Size match") {
         cv::Mat m = cv::Mat::ones(2, 5, nle::OPENCV_MAT_TYPE);
         nle::Vec v1 = nle::opencv2Eigen<nle::DType>(m);
@@ -42,38 +41,38 @@ TEST_CASE("OpenCV and Eigen conversions", "[utils]")
 
 TEST_CASE("Eigen Decomposition", "[numerics]")
 {
-    // nle::Mat R = nle::Mat::Random(5, 5);
+    // R is a PD matrix
     nle::Mat R(3, 3);
-    R << 1, 1, 0, 1, 1, 1, 0, 1, 1;
-    // R = ((R + R.transpose()) / 2).eval();
+    R << 2, -1, 0, -1, 2, -1, 0, -1, 2;
 
-    SECTION("Eigen decomposition is exact") {
+    SECTION("Eigen decomposition") {
         nle::Mat U;
         nle::Vec D;
         std::tie(U, D) = nle::eigenDecomposition(R, tol);
 
-        std::cout << "D: " << std::endl;
-        std::cout << D << std::endl;
+        SECTION("Eigenvalues is correct") {
+            nle::Vec d(3);
+            d << 3.41421356, 2. , 0.58578644;
+            CHECK(D.isApprox(d, 1e-5));
+        }
 
-        std::cout << "U: " << std::endl;
-        std::cout << U << std::endl;
+        SECTION("Recconstruction is correct") {
+            CHECK((U * D.asDiagonal() * U.transpose()).isApprox(R, tol));
+        }
 
-        CHECK((U * D.asDiagonal() * U.transpose()).isApprox(R, tol));
-
-        std::cout << "R:" << std::endl;
-        std::cout << R << std::endl;
-        std::cout << "Reconstruction" << std::endl;
-        std::cout << (U * D.diagonal() * U.transpose()) << std::endl;
+        SECTION("Eigenvectors are orthogonal") {
+            nle::Mat I = nle::Mat::Identity(R.cols(), R.cols());
+            CHECK(I.isApprox(U.transpose() * U, tol));
+        }
     }
 }
-
 
 TEST_CASE("Sinkhorn", "[numerics]")
 {
     nle::Mat I = nle::Mat::Identity(2, 2);
     nle::Vec eigvals = nle::Vec::Ones(2);
     nle::Mat Wa, Wab;
-    std::tie(Wa, Wab) = nle::sinkhornKnopp(I, eigvals, 50);
+    std::tie(Wa, Wab) = nle::sinkhornKnopp(I, eigvals, 10);
 
     SECTION("Wa is symmetric") {
         CHECK(Wa.isApprox(Wa.transpose()));
@@ -82,36 +81,26 @@ TEST_CASE("Sinkhorn", "[numerics]")
     SECTION("Row sum to 1") {
         nle::Mat Wblock(Wa.rows(), Wa.cols() + Wab.cols());
         Wblock << Wa, Wab;
-
-        nle::Vec ones = nle::Vec(Wa.rows());
-        CHECK(Wblock.rowwise().sum().isApprox(ones, tol));
-
-        // std::cout << Wblock.colwise().sum().rows() << std::endl;
-        // std::cout << "Wblock" << std::endl;
-        // std::cout << Wblock << std::endl;
-        // std::cout << "Wa" << std::endl;
-        // std::cout << Wa << std::endl;
-        // std::cout << "Wab" << std::endl;
-        // std::cout << Wab << std::endl;
+        nle::Vec v = Wblock.rowwise().sum();
+        nle::Vec ones = nle::Vec::Ones(Wa.rows());
+        CHECK(v.isApprox(ones, tol));
     }
 
     SECTION("Col sum to 1") {
         nle::Mat Wblock(Wa.rows() + Wab.cols(), Wa.cols());
         Wblock << Wa, Wab.transpose();
-
-        nle::Vec ones = nle::Vec(Wa.cols());
-        CHECK(Wblock.colwise().sum().isApprox(ones, tol));
+        nle::Vec ones = nle::Vec::Ones(Wa.cols());
+        CHECK(Wblock.colwise().sum().isApprox(ones.transpose(), tol));
     }
 
-
-    nle::Mat R = nle::Mat::Random(3, 3);
+    nle::Mat R = nle::Mat::Random(5, 5);
     R.array() = (R.array() + 1) / 2;
     SECTION("Balanced random matrix") {
         nle::Mat U;
         nle::Vec D;
         std::tie(U, D) = nle::eigenDecomposition(R, tol);
         nle::Mat Wa, Wab;
-        std::tie(Wa, Wab) = nle::sinkhornKnopp(U, D, 50);
+        std::tie(Wa, Wab) = nle::sinkhornKnopp(U, D, 20);
 
         SECTION("Wa is symmetric") {
             CHECK(Wa.isApprox(Wa.transpose(), tol));
@@ -120,33 +109,15 @@ TEST_CASE("Sinkhorn", "[numerics]")
         SECTION("Col sum to 1") {
             nle::Mat Wblock(Wa.rows() + Wab.cols(), Wa.cols());
             Wblock << Wa, Wab.transpose();
-
             nle::Vec ones = nle::Vec::Ones(Wa.cols());
-            CHECK(Wblock.colwise().sum().isApprox(ones, tol));
+            CHECK(Wblock.colwise().sum().isApprox(ones.transpose(), tol));
         }
 
         SECTION("Row sum to 1") {
             nle::Mat Wblock(Wa.rows(), Wa.cols() + Wab.cols());
             Wblock << Wa, Wab;
             nle::Vec ones = nle::Vec::Ones(Wa.rows());
-            std::cout << "Ones: " << std::endl;
-            std::cout << ones << std::endl;
             CHECK(Wblock.rowwise().sum().isApprox(ones, tol));
-
-            std::cout << "Wblock: " << std::endl;
-            std::cout << Wblock << std::endl;
-            std::cout << "Wblock rowwise sum: " << std::endl;
-            std::cout << Wblock.rowwise().sum() << std::endl;
         }
-
-        std::cout << R << std::endl;
-
-        // nle::Mat Wblock(Wa.rows(), Wa.cols() + Wab.cols());
-        // Wblock << Wa, Wab;
-        // std::cout << "Wblock" << std::endl;
-        // std::cout << Wblock << std::endl;
-        //
-        // std::cout << Wblock.rowwise().sum() << std::endl;
     }
-
 }
