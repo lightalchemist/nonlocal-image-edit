@@ -203,7 +203,7 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
-    int k = std::min(10, static_cast<int>(m_eigvals.size()));
+    // int k = std::min(10, static_cast<int>(m_eigvals.size()));
     Vec fS = transformEigenValues(m_eigvals, weights);
     assert(fS.size() == m_eigvals.size());
     assert(fS.size() == m_eigvecs.cols());
@@ -248,7 +248,6 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
 
     DType photometricWeight = 1.0 / (hy * hy);
     DType spatialWeight = 1.0 / (hx * hx);
-    // DType spatialWeight = 0;
     for (auto i = 0u; i < selected.size(); ++i) {
         // Ka
         Point p1 = selected[i];
@@ -264,13 +263,6 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
             Kab(i, j) = kernel(mat, p1, rest[j], spatialWeight, photometricWeight);
         }
     }
-
-    // TODO: Check if Eigen aliasing can cause problem here.
-    // Convert Ka and Kab to kernels
-    // Ka = Ka.array().exp();
-    // Kab = Kab.array().exp();
-    // Ka.array() = Ka.array().exp();
-    // Kab.array() = Kab.array().exp();
 
 #ifndef NDEBUG
     assert(Ka.isApprox(Ka.transpose()));
@@ -297,164 +289,135 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
 namespace nle {
     // TODO: Implement move semantic version of this to improve
     // memory performance of orthogonalize
-    std::pair<Mat, Vec> eigenDecomposition(const Mat& M, DType eps)
+    std::pair<Mat, Vec> 
+    eigenDecomposition(const Mat& M, DType eps)
     {
         Eigen::SelfAdjointEigenSolver<nle::Mat> es;
         es.compute(M);
         Vec D = es.eigenvalues().reverse();
         Mat U = es.eigenvectors().rowwise().reverse();
 
-        // std::cout << "EigenDecomposition original D:" << std::endl;
-        // std::cout << D << std::endl;
-
+        // Keep only valid number of eigenvectors and their eigenvalues
         int r = 0;
         for (r = 0; r < D.size() && D(r) >= eps; ++r);
         D = D.head(r).eval();
         U = U.leftCols(r).eval();
 
-        // std::cout << "r: " << r << std::endl;
-        // std::cout << "D after truncation" << std::endl;
-        // std::cout << D << std::endl;
-
-        // // Compute eigen factorization of a PSD matrix
-        // Eigen::JacobiSVD<Mat> svd(M, Eigen::ComputeThinU | Eigen::ComputeThinV);
-        // Vec D = svd.singularValues();
-        // int rank = svd.rank();
-        // int r = 0;
-        // for (r = 0; r < rank && D(r) >= eps; ++r)
-        //     ;
-        // // D = (svd.singularValues().head(r)).eval();
-        // // Mat U = svd.matrixU().leftCols(r);
-        // // Mat V = svd.matrixV().leftCols(r);
-        //
-        // D = (svd.singularValues()).eval();
-        // Mat U = svd.matrixU();
-        // Mat V = svd.matrixV();
-
 #ifndef NDEBUG
         // TODO: Replace this with proper logger
-        // std::cout << "Rank: " << svd.rank() << std::endl;
         std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
-        // std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
         std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
         std::cout << "Smallest k eigenvalues" << std::endl;
         int k = std::min(5, r);
         std::cout << D.tail(k) << std::endl;
-        // Mat mat = V.transpose() * U;
-        // assert(mat.isIdentity(eps));
-        // std::cout << "mat: " << std::endl;
-        // std::cout << mat.topLeftCorner(5, 5) << std::endl;
 #endif
 
         return std::make_pair(U, D);
     }
 
-
     std::pair<Mat, Mat>
-        // NLEFilter::sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps) const
-        sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps)
-        {
-            int n = phi.rows();
-            Vec r = Vec::Ones(n, 1);
-            Vec c;
+    sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps)
+    {
+        int n = phi.rows();
+        Vec r = Vec::Ones(n, 1);
+        Vec c;
 
-            Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> D = eigvals.asDiagonal();
-            for (int i = 0; i < maxIter; i++) {
-                c = phi * (D * (phi.transpose() * r));
-                robustInplaceReciprocal(c, eps);
-                assert(c.rows() == phi.rows());
-                assert(c.cols() == 1);
-                r = phi * (D * (phi.transpose() * c));
-                robustInplaceReciprocal(r, eps);
-            }
-
-            int p = phi.cols();
-            Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> R = r.head(p).asDiagonal();
-            Mat Wa = (R * (phi.topRows(p) * D)) * (c.head(p).replicate(1, p).array() * phi.topRows(p).array()).matrix().transpose();
-            Mat Wab = (R * (phi.topRows(p) * D)) * (c.tail(n - p).replicate(1, p).array() * phi.bottomRows(n - p).array()).matrix().transpose();
-
-            assert(Wa.cols() + Wab.cols() == phi.rows());
-            return std::make_pair(Wa, Wab);
+        Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> D = eigvals.asDiagonal();
+        for (int i = 0; i < maxIter; i++) {
+            c = phi * (D * (phi.transpose() * r));
+            robustInplaceReciprocal(c, eps);
+            assert(c.rows() == phi.rows());
+            assert(c.cols() == 1);
+            r = phi * (D * (phi.transpose() * c));
+            robustInplaceReciprocal(r, eps);
         }
 
-}
+        int p = phi.cols();
+        Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> R = r.head(p).asDiagonal();
+        Mat Wa = (R * (phi.topRows(p) * D)) * (c.head(p).replicate(1, p).array() * phi.topRows(p).array()).matrix().transpose();
+        Mat Wab = (R * (phi.topRows(p) * D)) * (c.tail(n - p).replicate(1, p).array() * phi.bottomRows(n - p).array()).matrix().transpose();
 
-// TODO: Implement move semantic version of this to improve memory performance
-auto NLEFilter::nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps) const
-{
-    Vec eigvals;
-    Mat eigvecs;
-    std::tie(eigvecs, eigvals) = eigenDecomposition(Ka);
+        assert(Wa.cols() + Wab.cols() == phi.rows());
+        return std::make_pair(Wa, Wab);
+    }
 
-    // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
-    Vec tmp = eigvals;
-    int numNonZero = robustInplaceReciprocal(tmp);
+    // TODO: Implement move semantic version of this to improve memory performance
+    std::pair<Vec, Mat> 
+    nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps)
+    {
+        Vec eigvals;
+        Mat eigvecs;
+        std::tie(eigvecs, eigvals) = nle::eigenDecomposition(Ka);
 
-    Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals = tmp.head(numNonZero).asDiagonal();
-    eigvecs = eigvecs.leftCols(numNonZero).eval();
+        // Approximate eigenvectors of K from the above eigenvalues and eigenvectors and Kab
+        Vec tmp = eigvals;
+        int numNonZero = robustInplaceReciprocal(tmp);
 
-    eigvals = eigvals.head(numNonZero).eval();
+        Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> invEigVals = tmp.head(numNonZero).asDiagonal();
+        eigvecs = eigvecs.leftCols(numNonZero).eval();
 
-    int n = Ka.cols() + Kab.cols();
-    Mat phi(n, eigvecs.cols());
-    phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
+        eigvals = eigvals.head(numNonZero).eval();
 
-    assert(eigvals.size() == phi.cols());
+        int n = Ka.cols() + Kab.cols();
+        Mat phi(n, eigvecs.cols());
+        phi << eigvecs, (Kab.transpose() * eigvecs * invEigVals);
 
-    return std::make_pair(eigvals, phi);
-}
+        assert(eigvals.size() == phi.cols());
 
-auto NLEFilter::orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DType eps) const
-{
-    Mat eigvecs;
-    Vec eigvals;
-    std::tie(eigvecs, eigvals) = eigenDecomposition(Wa, eps);
+        return std::make_pair(eigvals, phi);
+    }
 
-    Vec invRootEigVals = eigvals;
-    robustInplaceReciprocal(invRootEigVals, eps);
-    invRootEigVals = invRootEigVals.cwiseSqrt();
-    Mat invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
-    // NOTE: the parentheses around Wab and Wab^T is crucial for ensuring that expression
-    // gets evaluated first to become a small p x p matrix, otherwise the compiler might
-    // generate two copies intermediate matrices of size p x n and n x p respectively.
-    Mat Q = Wa + invRootWa * (Wab * Wab.transpose()) * invRootWa;
+    std::pair<Mat, Vec> 
+    orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors, DType eps)
+    {
+        Mat eigvecs;
+        Vec eigvals;
+        std::tie(eigvecs, eigvals) = nle::eigenDecomposition(Wa, eps);
+
+        Vec invRootEigVals = eigvals;
+        robustInplaceReciprocal(invRootEigVals, eps);
+        invRootEigVals = invRootEigVals.cwiseSqrt();
+        Mat invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
+        // NOTE: the parentheses around Wab and Wab^T is crucial for ensuring that expression
+        // gets evaluated first to become a small p x p matrix, otherwise the compiler might
+        // generate two copies intermediate matrices of size p x n and n x p respectively.
+        Mat Q = Wa + invRootWa * (Wab * Wab.transpose()) * invRootWa;
 
 #ifndef NDEBUG
-    if (Q.isApprox(Q.transpose(), eps)) {
-        std::cout << "Q is symmetric" << std::endl;
-    } else {
-        std::cout << "Q is NOT symmetric" << std::endl;
-        std::cout << Q.bottomRightCorner(5, 5) << std::endl;
-    }
+        if (Q.isApprox(Q.transpose(), eps)) {
+            std::cout << "Q is symmetric" << std::endl;
+        } else {
+            std::cout << "Q is NOT symmetric" << std::endl;
+            std::cout << Q.bottomRightCorner(5, 5) << std::endl;
+        }
 #endif
 
-    Mat Vq;
-    Vec Sq;
+        Mat Vq;
+        Vec Sq;
 
 #ifdef USE_SPECTRA
-    std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
+        std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
 #else
-    std::tie(Vq, Sq) = eigenDecomposition(Q, eps);
-
-    std::cout << "Original # eigenvalues: " << Sq.rows() << " x " << Sq.cols() << std::endl;
-
-    int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
-    Vq = Vq.leftCols(k).eval();
-    Sq = Sq.head(k).eval();
+        std::tie(Vq, Sq) = nle::eigenDecomposition(Q, eps);
+        int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
+        Vq = Vq.leftCols(k).eval();
+        Sq = Sq.head(k).eval();
 #endif
 
-    Vec invRootSq = Sq;
-    robustInplaceReciprocal(invRootSq, eps);
-    invRootSq = invRootSq.cwiseSqrt();
+        Vec invRootSq = Sq;
+        robustInplaceReciprocal(invRootSq, eps);
+        invRootSq = invRootSq.cwiseSqrt();
 
-    // Stack Wa above Wab^T
-    Mat tmp(Wa.rows() + Wab.cols(), Wa.cols());
-    tmp << Wa, Wab.transpose();
-    // Compute approximate eigenvectors of W
-    Mat V = tmp * invRootWa * Vq * invRootSq.asDiagonal();
+        // Stack Wa above Wab^T
+        Mat tmp(Wa.rows() + Wab.cols(), Wa.cols());
+        tmp << Wa, Wab.transpose();
+        // Compute approximate eigenvectors of W
+        Mat V = tmp * invRootWa * Vq * invRootSq.asDiagonal();
 
-    // V contain eigenvectors of W and Sq contains their corresponding eigenvalues
-    return std::make_pair(V, Sq);
+        // V contain eigenvectors of W and Sq contains their corresponding eigenvalues
+        return std::make_pair(V, Sq);
+    }
+
 }
 
 cv::Mat getLuminosityChannel(const cv::Mat& image)
@@ -484,10 +447,6 @@ void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int n
 {
     cv::Mat luminosity = getLuminosityChannel(image);
 
-    // Scale back to 0 - 100 range before processing
-    //    luminosity = luminosity / 255.0 * 100.0;
-    // luminosity = luminosity / 255.0;
-
     std::cout << "Computing kernel" << std::endl;
     Mat Ka, Kab;
     Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P;
@@ -504,13 +463,6 @@ void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int n
     Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
-    // Mat V;
-    // Vec S;
-    // std::tie(V, S) = orthogonalize(Wa, Wab, nEigenVectors);
-    // int nFilters = std::min(nEigenVectors, static_cast<int>(S.rows()));
-    // m_eigvecs = V.leftCols(nFilters).eval();
-    // m_eigvals = S.head(nFilters).eval();
-
     std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
 
     // Permute values back into correct position

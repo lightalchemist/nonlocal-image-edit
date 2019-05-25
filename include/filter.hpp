@@ -37,11 +37,17 @@ namespace nle {
         int col;
     };
 
+    std::pair<Mat, Vec> 
+    eigenDecomposition(const Mat& M, DType eps=EPS);
+
+    std::pair<Vec, Mat> 
+    nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps=EPS);
+
     std::pair<Mat, Mat>
     sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter=10, DType eps=EPS);
 
     std::pair<Mat, Vec> 
-    eigenDecomposition(const Mat& M, DType eps=EPS);
+    orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS);
 
     class NLEFilter {
         public:
@@ -58,17 +64,12 @@ namespace nle {
         private:
             auto computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nColSamples,
                                       DType hx, DType hy) const;
-            // std::pair<Mat, Mat>
-            //     sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter=10, DType eps=EPS) const;
-            auto nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps = EPS) const;
-            auto orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS) const;
+            // auto orthogonalize(const Mat& Wa, const Mat& Wab, int nEigVectors=5, DType eps=EPS) const;
             cv::Mat apply(const cv::Mat& channel, const Vec& transformedEigVals) const;
 
             Mat m_eigvecs;
             Vec m_eigvals;
     };
-
-
 }
 
 #endif
