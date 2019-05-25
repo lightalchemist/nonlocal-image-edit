@@ -155,7 +155,6 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 
     cv::Mat II;
     cv::cvtColor(image, II, cv::COLOR_BGR2YUV);
-    // cv::cvtColor(image, II, cv::COLOR_BGR2Lab);
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
 
@@ -197,7 +196,6 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 
     cv::imshow("luminosity channel", channels[0]);
     cv::imshow("Original luminosity channel", originalY);
-
     cv::imshow("Bilateral filtered", bfImage);
 
     cv::Mat filteredImage;
@@ -222,7 +220,6 @@ cv::Mat NLEFilter::enhance(const cv::Mat& image, const std::vector<DType>& weigh
     cv::split(II, channels);
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
 
-    // int k = std::min(10, static_cast<int>(m_eigvals.size()));
     Vec fS = transformEigenValues(m_eigvals, weights);
     assert(fS.size() == m_eigvals.size());
     assert(fS.size() == m_eigvecs.cols());
