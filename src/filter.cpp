@@ -1,4 +1,7 @@
 #include "filter.hpp"
+#include "utils.hpp"
+
+#include <opencv2/highgui.hpp>
 
 using nle::DType;
 using nle::EPS;
@@ -8,43 +11,6 @@ using nle::OPENCV_MAT_TYPE;
 using nle::Point;
 using nle::Vec;
 
-#include <opencv2/highgui.hpp>
-
-inline int to1DIndex(int row, int col, int ncols)
-{
-    return row * ncols + col;
-}
-
-inline std::pair<int, int> to2DCoords(int index, int ncols)
-{
-    return std::make_pair(index / ncols, index % ncols);
-}
-
-cv::Mat eigen2opencv(Vec& v, int nrows, int ncols)
-{
-    cv::Mat X(nrows, ncols, OPENCV_MAT_TYPE, v.data());
-    return X;
-}
-
-template <typename T>
-Vec opencv2Eigen(const cv::Mat& mat)
-{
-    // Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> lv;
-    Vec lv(mat.total());
-
-    std::cout << "lv size: " << lv.size() << std::endl;
-    // Vec lv;
-    // lv.resize(mat.total(), 1);
-    int k = 0;
-    for (int i = 0; i < mat.rows; i++) {
-        for (int j = 0; j < mat.cols; j++) {
-            lv(k) = mat.at<T>(i, j);
-            ++k;
-        }
-    }
-
-    return lv;
-}
 
 cv::Mat rescaleForVisualization(const cv::Mat& mat)
 {
@@ -191,39 +157,6 @@ auto topkEigenDecomposition(const Mat& M, int nLargest, DType eps = EPS)
     }
 }
 #endif
-
-// TODO: Implement move semantic version of this to improve
-// memory performance of orthogonalize
-auto eigenDecomposition(const Mat& M, DType eps = EPS)
-{
-    // Compute eigen factorization of a PSD matrix
-    Eigen::JacobiSVD<Mat> svd(M, Eigen::ComputeThinU | Eigen::ComputeThinV);
-    Vec D = svd.singularValues();
-    int rank = svd.rank();
-    int r = 0;
-    for (r = 0; r < rank && D(r) >= eps; ++r)
-        ;
-    D = (svd.singularValues().head(r)).eval();
-    Mat U = svd.matrixU().leftCols(r);
-    Mat V = svd.matrixV().leftCols(r);
-
-#ifndef NDEBUG
-    // TODO: Replace this with proper logger
-    std::cout << "Rank: " << svd.rank() << std::endl;
-    std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
-    std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
-    std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
-    std::cout << "Smallest k eigenvalues" << std::endl;
-    int k = std::min(5, r);
-    std::cout << D.tail(k) << std::endl;
-    // Mat mat = V.transpose() * U;
-    // assert(mat.isIdentity(eps));
-    // std::cout << "mat: " << std::endl;
-    // std::cout << mat.topLeftCorner(5, 5) << std::endl;
-#endif
-
-    return std::make_pair(U, D);
-}
 
 cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 {
@@ -393,30 +326,68 @@ auto NLEFilter::computeKernelWeights(const cv::Mat& mat, int nRowSamples, int nC
     return std::make_tuple(P, Ka, Kab);
 }
 
-std::pair<Mat, Mat>
-NLEFilter::sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps) const
-{
-    int n = phi.rows();
-    Vec r = Vec::Ones(n, 1);
-    Vec c;
+namespace nle {
+    // TODO: Implement move semantic version of this to improve
+    // memory performance of orthogonalize
+    std::pair<Mat, Vec> eigenDecomposition(const Mat& M, DType eps)
+    {
+        // Compute eigen factorization of a PSD matrix
+        Eigen::JacobiSVD<Mat> svd(M, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        Vec D = svd.singularValues();
+        int rank = svd.rank();
+        int r = 0;
+        for (r = 0; r < rank && D(r) >= eps; ++r)
+            ;
+        D = (svd.singularValues().head(r)).eval();
+        Mat U = svd.matrixU().leftCols(r);
+        Mat V = svd.matrixV().leftCols(r);
 
-    Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> D = eigvals.asDiagonal();
-    for (int i = 0; i < maxIter; i++) {
-        c = phi * (D * (phi.transpose() * r));
-        robustInplaceReciprocal(c, eps);
-        assert(c.rows() == phi.rows());
-        assert(c.cols() == 1);
-        r = phi * (D * (phi.transpose() * c));
-        robustInplaceReciprocal(r, eps);
+#ifndef NDEBUG
+        // TODO: Replace this with proper logger
+        std::cout << "Rank: " << svd.rank() << std::endl;
+        std::cout << "U shape: " << U.rows() << " x " << U.cols() << std::endl;
+        std::cout << "V shape: " << V.rows() << " x " << V.cols() << std::endl;
+        std::cout << "D shape: " << D.rows() << " x " << D.cols() << std::endl;
+        std::cout << "Smallest k eigenvalues" << std::endl;
+        int k = std::min(5, r);
+        std::cout << D.tail(k) << std::endl;
+        // Mat mat = V.transpose() * U;
+        // assert(mat.isIdentity(eps));
+        // std::cout << "mat: " << std::endl;
+        // std::cout << mat.topLeftCorner(5, 5) << std::endl;
+#endif
+
+        return std::make_pair(U, D);
     }
 
-    int p = phi.cols();
-    Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> R = r.head(p).asDiagonal();
-    Mat Wa = (R * (phi.topRows(p) * D)) * (c.head(p).replicate(1, p).array() * phi.topRows(p).array()).matrix().transpose();
-    Mat Wab = (R * (phi.topRows(p) * D)) * (c.tail(n - p).replicate(1, p).array() * phi.bottomRows(n - p).array()).matrix().transpose();
 
-    assert(Wa.cols() + Wab.cols() == phi.rows());
-    return std::make_pair(Wa, Wab);
+    std::pair<Mat, Mat>
+        // NLEFilter::sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps) const
+        sinkhornKnopp(const Mat& phi, const Vec& eigvals, int maxIter, DType eps)
+        {
+            int n = phi.rows();
+            Vec r = Vec::Ones(n, 1);
+            Vec c;
+
+            Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> D = eigvals.asDiagonal();
+            for (int i = 0; i < maxIter; i++) {
+                c = phi * (D * (phi.transpose() * r));
+                robustInplaceReciprocal(c, eps);
+                assert(c.rows() == phi.rows());
+                assert(c.cols() == 1);
+                r = phi * (D * (phi.transpose() * c));
+                robustInplaceReciprocal(r, eps);
+            }
+
+            int p = phi.cols();
+            Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> R = r.head(p).asDiagonal();
+            Mat Wa = (R * (phi.topRows(p) * D)) * (c.head(p).replicate(1, p).array() * phi.topRows(p).array()).matrix().transpose();
+            Mat Wab = (R * (phi.topRows(p) * D)) * (c.tail(n - p).replicate(1, p).array() * phi.bottomRows(n - p).array()).matrix().transpose();
+
+            assert(Wa.cols() + Wab.cols() == phi.rows());
+            return std::make_pair(Wa, Wab);
+        }
+
 }
 
 // TODO: Implement move semantic version of this to improve memory performance
@@ -518,7 +489,7 @@ cv::Mat getYChannel(const cv::Mat& image)
 }
 
 void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int nColSamples,
-    DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+                                    DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
     cv::Mat luminosity = getLuminosityChannel(image);
 
@@ -558,7 +529,7 @@ void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int n
     for (int i = 0; i < k; i++) {
         for (int j = 0; j < k; j++) {
             std::cout << "v" << i << " dot "
-                      << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
+                << "v" << j << ": " << m_eigvecs.col(i).dot(m_eigvecs.col(j)) << std::endl;
         }
     }
 
@@ -573,7 +544,7 @@ void NLEFilter::learnForEnhancement(const cv::Mat& image, int nRowSamples, int n
 }
 
 void NLEFilter::learnForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
-    DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+                                DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
 {
     cv::Mat Y = getYChannel(image);
 

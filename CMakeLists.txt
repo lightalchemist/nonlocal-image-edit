@@ -24,7 +24,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/ext)
 
 option(USE_SPECTRA "Use SPECTRA for eigendecomposition" OFF)
 if (USE_SPECTRA)
-    message("Using SPECTRA for eigen decomposition.")
+    message(STATUS "Using SPECTRA for eigen decomposition.")
     add_definitions(-DUSE_SPECTRA)
 endif()
 
@@ -43,10 +43,10 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
 # endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    message("Release mode")
+    message(STATUS "Release mode")
     add_compile_options(-march=native)
 elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("Debug mode")
+    message(STATUS "Debug mode")
     add_compile_options(-ggdb3)
 endif()
 
@@ -55,8 +55,8 @@ file(GLOB PROJECT_SRC
     "*.cpp"
 )
 
-add_executable("enhance" "src/enhance.cpp" "src/filter.cpp" "include/filter.hpp")
-add_executable("denoise" "src/denoise.cpp" "src/filter.cpp" "include/filter.hpp")
+add_executable("enhance" "src/enhance.cpp" "src/filter.cpp" "include/filter.hpp" "include/utils.hpp")
+add_executable("denoise" "src/denoise.cpp" "src/filter.cpp" "include/filter.hpp" "include/utils.hpp")
 
 # Prepare "Catch" library for other executables
 
@@ -67,7 +67,7 @@ target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 
 # Make test executable
 set(TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test/test_filter.cpp)
-add_executable(tests ${TEST_SOURCES} "src/filter.cpp" "include/filter.hpp")
+add_executable(tests ${TEST_SOURCES} "src/filter.cpp" "include/filter.hpp" "include/utils.hpp")
 target_link_libraries(tests Catch ${OpenCV_LIBS} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Eigen3::Eigen)
 
 
