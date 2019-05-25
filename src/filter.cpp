@@ -156,10 +156,14 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
 
+    cv::Mat bfImage;
+    cv::bilateralFilter(image, bfImage, -1, 10, 10, cv::BORDER_DEFAULT);
+
+
     cv::Mat originalY = channels[0];
 
     cv::Mat Y;
-    cv::bilateralFilter(channels[0], Y, -1, 30, 30, cv::BORDER_DEFAULT);
+    cv::bilateralFilter(channels[0], Y, -1, 10, 10, cv::BORDER_DEFAULT);
     channels[0] = Y;
 
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
@@ -171,6 +175,7 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
         DType eval = teigvals(i);
         std::cout << "eig " << i << " val: " << eval << std::endl;
         teigvals(i) = std::pow(eval, k);
+        // teigvals(i) = 1 - std::pow(1 - eval, k + 1);
     }
 
     // channels[0] = apply(channels[0], teigvals);
@@ -189,6 +194,8 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 
     cv::imshow("luminosity channel", channels[0]);
     cv::imshow("Original luminosity channel", originalY);
+
+    cv::imshow("Bilateral filtered", bfImage);
 
     cv::Mat filteredImage;
     cv::merge(channels, filteredImage);
@@ -450,7 +457,7 @@ cv::Mat getYChannel(const cv::Mat& image)
     cv::split(yuv, channels);
 
     cv::Mat denoised;
-    cv::bilateralFilter(channels[0], denoised, -1, 30, 30, cv::BORDER_DEFAULT);
+    cv::bilateralFilter(channels[0], denoised, -1, 10, 10, cv::BORDER_DEFAULT);
 
     denoised.convertTo(denoised, OPENCV_MAT_TYPE);
     return denoised;
