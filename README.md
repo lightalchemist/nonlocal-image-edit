@@ -38,8 +38,8 @@ The compiled binary is located in the `bin/` directory. It takes the following a
 7. Number of iterations to run for Sinkhorn-Knopp matrix balancing algorithm
 8. Number of eigenvectors to keep for the filter
 9. weight 1
--  ...
-10. weight k
+10.  ...
+11. weight k
 
 Here is an example that uses 20 and 10 evenly sampled rows and cols respectively with hx set to 5000, hy set to 30, 10 iterations for Sinkhorn algorithm, 10 eigenvectors for filter, and weights 4, 6, 6, 1.05.
 
@@ -59,6 +59,7 @@ Original                               | Result                                 
 ![Original](data/snow-mountain-15.bmp) | ![Result](data/snow-mountain-filtered.png) | 10 20 200 30 30 10 3 10 1 1
 ![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
 ![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     | 10 20 1000 25 30 50 2 3 3 1
+![Original](data/red-cherries-10.bmp)  | ![Result](data/red-cherries-filtered.png)  | 20 10 400 30 50 20 2 2 2 1
 
 ## Sample images
 
