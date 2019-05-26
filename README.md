@@ -52,7 +52,7 @@ Here is an example that uses 20 and 10 evenly sampled rows and cols respectively
 
 ## Sample results
 
-In the following table, the column **Parameters**  contains the arguments passed to the program (excluding input filename and output filename) to generate each result. The input and result images are all in the `data` directory and can be found by clicking on the respective images.
+In the following table, the column **Parameters**  contains the arguments passed to the program (excluding input filename and output filename) to generate each result. The input and result images are all in the `data` directory and can be found by clicking on the respective images. Click on an image to see a larger version.
 
 Original                               | Result                                     | Parameters
 :-------------:                        | :-----:                                    | :---------
