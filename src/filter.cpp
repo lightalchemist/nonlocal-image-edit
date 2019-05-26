@@ -228,7 +228,7 @@ namespace nle
     }
 
     std::pair<Mat, Mat>
-    sinkhorn(const Mat& phi, const Vec& eigvals, int maxIter, DType eps)
+    sinkhorn(const Mat& phi, const Vec& eigvals, int maxIter)
     {
         int n = phi.rows();
         Vec r = Vec::Ones(n, 1);
@@ -237,11 +237,11 @@ namespace nle
         Eigen::DiagonalMatrix<DType, Eigen::Dynamic, Eigen::Dynamic> D = eigvals.asDiagonal();
         for (int i = 0; i < maxIter; i++) {
             c = phi * (D * (phi.transpose() * r));
-            inplaceReciprocal(c, eps);
+            inplaceReciprocal(c);
             assert(c.rows() == phi.rows());
             assert(c.cols() == 1);
             r = phi * (D * (phi.transpose() * c));
-            inplaceReciprocal(r, eps);
+            inplaceReciprocal(r);
         }
 
         int p = phi.cols();
@@ -255,7 +255,7 @@ namespace nle
 
     // TODO: Implement move semantic version of this to improve memory performance
     std::pair<Vec, Mat> 
-    nystromApproximation(const Mat& Ka, const Mat& Kab, DType eps)
+    nystromApproximation(const Mat& Ka, const Mat& Kab)
     {
         Vec eigvals;
         Mat eigvecs;
@@ -284,10 +284,10 @@ namespace nle
     {
         Mat eigvecs;
         Vec eigvals;
-        std::tie(eigvecs, eigvals) = nle::eigenDecomposition(Wa, eps);
+        std::tie(eigvecs, eigvals) = nle::eigenDecomposition(Wa);
 
         Vec invRootEigVals = eigvals;
-        inplaceReciprocal(invRootEigVals, eps);
+        inplaceReciprocal(invRootEigVals);
         invRootEigVals = invRootEigVals.cwiseSqrt();
         Mat invRootWa = eigvecs * invRootEigVals.asDiagonal() * eigvecs.transpose();
         // NOTE: the parentheses around Wab and Wab^T is crucial for ensuring that expression
@@ -308,16 +308,16 @@ namespace nle
         Vec Sq;
 
 #ifdef USE_SPECTRA
-        std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors, eps);
+        std::tie(Vq, Sq) = topkEigenDecomposition(Q, nEigVectors);
 #else
-        std::tie(Vq, Sq) = nle::eigenDecomposition(Q, eps);
+        std::tie(Vq, Sq) = nle::eigenDecomposition(Q);
         int k = std::min(nEigVectors, static_cast<int>(Vq.cols()));
         Vq = Vq.leftCols(k).eval();
         Sq = Sq.head(k).eval();
 #endif
 
         Vec invRootSq = Sq;
-        inplaceReciprocal(invRootSq, eps);
+        inplaceReciprocal(invRootSq);
         invRootSq = invRootSq.cwiseSqrt();
 
         // Stack Wa above Wab^T
@@ -505,7 +505,7 @@ void NLEFilter::trainFilter(const cv::Mat& channel, int nRowSamples, int nColSam
 
     for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
         Vec v = m_eigvecs.col(i);
-        std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
+        std::cout << "Eigvec " << i << " eigval: " << m_eigvals(i) << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
         cv::Mat m = eigen2opencv(v, channel.rows, channel.cols);
         m = rescaleForVisualization(m);
         m.convertTo(m, CV_8U);
