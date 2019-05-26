@@ -1,8 +1,24 @@
 #include "filter.hpp"
 #include "utils.hpp"
 
+#include <cassert>
+#include <cmath>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+
+#ifdef USE_SPECTRA
+#include <Spectra/MatOp/DenseGenMatProd.h>
+#include <Spectra/MatOp/DenseSymShiftSolve.h>
+#include <Spectra/SymEigsSolver.h>
+#endif
 
 using nle::DType;
 using nle::EPS;
@@ -115,17 +131,18 @@ namespace nle
             // Ka
             Point p1 = selected[i];
             for (auto j = i; j < selected.size(); ++j) {
-                // auto val = negativeWeightedDistance(mat, p1, selected[j], spatialWeight, photometricWeight);
-                auto val = kernel(mat, p1, selected[j], spatialWeight, photometricWeight);
+                auto val = negativeWeightedDistance(mat, p1, selected[j], spatialWeight, photometricWeight);
                 Ka(i, j) = val;
                 Ka(j, i) = val;
             }
             // Kab
             for (auto j = 0u; j < rest.size(); j++) {
-                // Kab(i, j) = negativeWeightedDistance(mat, p1, rest[j], spatialWeight, photometricWeight);
-                Kab(i, j) = kernel(mat, p1, rest[j], spatialWeight, photometricWeight);
+                Kab(i, j) = negativeWeightedDistance(mat, p1, rest[j], spatialWeight, photometricWeight);
             }
         }
+
+        Ka.array() = Ka.array().exp();
+        Kab.array() = Kab.array().exp();
 
 #ifndef NDEBUG
         assert(Ka.isApprox(Ka.transpose()));
@@ -428,11 +445,9 @@ cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) 
         throw std::runtime_error("Number of values in channel must match that of training image.");
     }
 
-    // Eigen::Map<Vec> c( channel.ptr<DType>() ); 
     const DType* p = channel.ptr<DType>();
-    Eigen::Map<const Eigen::Matrix<DType, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> c( p,
-                                                                                         channel.total(),
-                                                                                         1); 
+    Eigen::Map<const Eigen::Matrix<DType, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+    c(p, channel.total(), 1); 
 
     // Vec c = opencv2eigen<DType>(channel);
     Vec filtered = m_eigvecs * (transformedEigVals.asDiagonal() * m_eigvecs.transpose() * c);

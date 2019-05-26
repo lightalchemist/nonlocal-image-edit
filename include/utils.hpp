@@ -2,6 +2,10 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+namespace cv {
+    class Mat;
+}
+
 namespace nle {
 
     inline int to1DIndex(int row, int col, int ncols)
@@ -16,8 +20,9 @@ namespace nle {
 
     static cv::Mat eigen2opencv(Vec& v, int nrows, int ncols)
     {
-        cv::Mat X(nrows, ncols, OPENCV_MAT_TYPE, v.data());
-        return X.clone();
+        cv::Mat mat(nrows, ncols, OPENCV_MAT_TYPE, v.data());
+        // Need to clone so that this mat will have its own copy of the data.
+        return mat.clone();
     }
 
     template <typename T>

@@ -2,25 +2,16 @@
 #ifndef FILTER_HPP
 #define FILTER_HPP
 
-#include <cassert>
-#include <cmath>
-#include <iostream>
-#include <stdexcept>
-#include <string>
 #include <vector>
 
 #include <opencv2/core.hpp>
 
 #include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 
-#ifdef USE_SPECTRA
-#include <Spectra/MatOp/DenseGenMatProd.h>
-#include <Spectra/MatOp/DenseSymShiftSolve.h>
-#include <Spectra/SymEigsSolver.h>
-#endif
-
+// namespace cv {
+// class Mat;
+// }
+//
 namespace nle {
     using Vec = Eigen::VectorXd;
     using Mat = Eigen::MatrixXd;
