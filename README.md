@@ -29,36 +29,40 @@ make
 
 The compiled binary is located in the `bin/` directory. It takes the following arguments
 
-1. input filename
-2. output filename 
-3. Number of row samples for Nystrom approximation
-4. Number of col samples for Nystrom approximation
+1. Input filename
+2. Output filename 
+3. Number of evenly sampled rows for Nystrom approximation
+4. Number of evenly sampled cols for Nystrom approximation
 5. hx
 6. hy
-7. weight 1
-8. ...
-9. weight k
+7. Number of iterations to run for Sinkhorn-Knopp matrix balancing algorithm
+8. Number of eigenvectors to keep for the filter
+9. weight 1
+-  ...
+10. weight k
 
-Here is an example
+Here is an example that uses 20 and 10 evenly sampled rows and cols respectively, hx=5000, hy = 30, 10 iterations for Sinkhorn algorithm, 10 eigenvectors for filter, and weights 4, 6, 6, 1.05.
 
 ```bash
 ./enhance ../data/forest-10.bmp forest-filtered.png 20 10 5000 30 10 10 4 6 6 1.05
 ```
+
 ## Sample results
+
+In the following table, the column **Parameters**  contains the arguments passed to the program (excluding input filename and output filename) to generate each result. The input and result images are all in the `data` directory and can be found by clicking on the respective images.
 
 Original                               | Result                                     | Parameters
 :-------------:                        | :-----:                                    | :---------
 ![Original](data/canyon-dawn-20.bmp)   | ![Result](data/canyon-filtered.bmp)        | 20 10 500 30 40 10 2 7 5 1
-![Original](data/conifer-10.bmp)       | ![Result](data/conifer-filtered.png)       |
-![Original](data/forest-10.bmp)        | ![Result](data/forest-filtered.png)        |
-![Original](data/snow-mountain-15.bmp) | ![Result](data/snow-mountain-filtered.png) |
-![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        |
-![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     |
+![Original](data/conifer-10.bmp)       | ![Result](data/conifer-filtered.png)       | 25 15 800 20 40 100 2 3 5 1
+![Original](data/forest-10.bmp)        | ![Result](data/forest-filtered.png)        | 20 10 5000 30 10 10 4 6 6 1.05
+![Original](data/snow-mountain-15.bmp) | ![Result](data/snow-mountain-filtered.png) | 10 20 200 30 30 10 3 10 1 1
+![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
+![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     | 10 20 1000 25 30 50 2 3 3 1
 
+## Sample images
 
-## Additional sample images
-
-Sample images can be found in the `data` directory. 
+All the above sample images can be found in the `data` directory. 
 The files with names matching the pattern `<name>-filtered.png` are the 
 filtered results corresponding to each image.
 
