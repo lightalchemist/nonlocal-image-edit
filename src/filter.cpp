@@ -428,7 +428,13 @@ cv::Mat NLEFilter::apply(const cv::Mat& channel, const Vec& transformedEigVals) 
         throw std::runtime_error("Number of values in channel must match that of training image.");
     }
 
-    Vec c = opencv2eigen<DType>(channel);
+    // Eigen::Map<Vec> c( channel.ptr<DType>() ); 
+    const DType* p = channel.ptr<DType>();
+    Eigen::Map<const Eigen::Matrix<DType, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> c( p,
+                                                                                         channel.total(),
+                                                                                         1); 
+
+    // Vec c = opencv2eigen<DType>(channel);
     Vec filtered = m_eigvecs * (transformedEigVals.asDiagonal() * m_eigvecs.transpose() * c);
     return eigen2opencv(filtered, channel.rows, channel.cols);
 }
@@ -485,7 +491,7 @@ void NLEFilter::trainFilter(const cv::Mat& channel, int nRowSamples, int nColSam
     for (int i = 0; i < std::min(nEigenVectors, 5); i++) {
         Vec v = m_eigvecs.col(i);
         std::cout << "Eigvec " << i << " minCoeff: " << v.minCoeff() << " maxCoeff: " << v.maxCoeff() << std::endl;
-        cv::Mat m = eigen2opencv(v, image.rows, image.cols);
+        cv::Mat m = eigen2opencv(v, channel.rows, channel.cols);
         m = rescaleForVisualization(m);
         m.convertTo(m, CV_8U);
         cv::imshow("image" + std::to_string(i), m);

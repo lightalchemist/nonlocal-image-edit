@@ -72,7 +72,7 @@ TEST_CASE("Sinkhorn", "[numerics]")
     nle::Mat I = nle::Mat::Identity(2, 2);
     nle::Vec eigvals = nle::Vec::Ones(2);
     nle::Mat Wa, Wab;
-    std::tie(Wa, Wab) = nle::sinkhornKnopp(I, eigvals, 10);
+    std::tie(Wa, Wab) = nle::sinkhorn(I, eigvals, 10);
 
     SECTION("Wa is symmetric") {
         CHECK(Wa.isApprox(Wa.transpose()));
@@ -100,7 +100,7 @@ TEST_CASE("Sinkhorn", "[numerics]")
         nle::Vec D;
         std::tie(U, D) = nle::eigenDecomposition(R, tol);
         nle::Mat Wa, Wab;
-        std::tie(Wa, Wab) = nle::sinkhornKnopp(U, D, 20);
+        std::tie(Wa, Wab) = nle::sinkhorn(U, D, 20);
 
         SECTION("Wa is symmetric") {
             CHECK(Wa.isApprox(Wa.transpose(), tol));

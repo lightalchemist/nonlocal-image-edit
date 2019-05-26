@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
     }
     
     auto filter = nle::NLEFilter();
-    filter.learnForDenoise(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    filter.trainForDenoise(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
     cv::Mat result = filter.denoise(image, weights[0]);
     // filter.learnForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
     // cv::Mat result = filter.enhance(image, weights);

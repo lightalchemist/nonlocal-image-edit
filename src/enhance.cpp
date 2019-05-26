@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
 
     // See this link for effect of matrix type on output range of Lab conversion.
     // https://stackoverflow.com/questions/11386556/converting-an-opencv-bgr-8-bit-image-to-cie-lab
-    filter.fitEnhancementFilter(luminance, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    filter.trainForEnhancement(image, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
     cv::Mat result = filter.enhance(image, weights);
     std::cout << "Done. Press any key in result window to exit." << std::endl;
 
