@@ -45,7 +45,7 @@ TEST_CASE("Eigen Decomposition", "[numerics]")
     nle::Mat R(3, 3);
     R << 2, -1, 0, -1, 2, -1, 0, -1, 2;
 
-    SECTION("Eigen decomposition") {
+    SECTION("Eigen decomposition of positive definite matrix") {
         nle::Mat U;
         nle::Vec D;
         std::tie(U, D) = nle::eigenDecomposition(R, tol);
@@ -119,5 +119,35 @@ TEST_CASE("Sinkhorn", "[numerics]")
             nle::Vec ones = nle::Vec::Ones(Wa.rows());
             CHECK(Wblock.rowwise().sum().isApprox(ones, tol));
         }
+    }
+}
+
+
+TEST_CASE("Orthogonalize", "[numerics]")
+{
+    int p = 10, n = 100;
+    nle::Mat Wa = nle::Mat::Random(p, p);
+    Wa.array() = (Wa.array() + 1) / 2;
+    Wa = (Wa + Wa.transpose()).eval() / 2;
+
+    nle::Mat Wab = nle::Mat::Random(p, n - p);
+    Wab.array() = (Wab.array() + 1) / 2;
+
+    int k = 5;
+    nle::Mat V; 
+    nle::Vec S;
+    std::tie(V, S) = nle::orthogonalize(Wa, Wab, k);
+
+    SECTION("Correct number of eigenvectors and eigenvalues computed is >= 1 and match in numbers") 
+    {
+        CHECK(S.size() > 0);
+        CHECK(V.cols() > 0);
+        CHECK(S.size() == V.cols());
+    }
+
+    SECTION("Eigenvectors are orthogonal") {
+        nle::Mat M = V.transpose() * V;
+        nle::Mat I = nle::Mat::Identity(k, k);
+        CHECK(M.isApprox(I, tol));
     }
 }
