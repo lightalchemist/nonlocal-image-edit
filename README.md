@@ -62,7 +62,7 @@ Original                               | Result                                 
 ![Original](data/snow-mountain-15.bmp) | ![Result](data/snow-mountain-filtered.png) | 10 20 200 30 30 10 3 10 1 1
 ![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
 ![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     | 10 20 1000 25 30 50 2 3 3 1
-![Original](data/rock2.jpg)            | ![Result](data/rock2-filtered.png)         | 20 30 500 10 50 50 4 3 4 1
+![Original](data/rock2.jpg)            | ![Result](data/rock2-filtered.png)         | 20 30 500 10 50 50 4 3 4 1 (**Note:** This example requires a lot of memory to run. Consider downsampling original image first.)
 ![Original](data/red-cherries-10.bmp)  | ![Result](data/red-cherries-filtered.png)  | 20 10 400 30 50 20 2 2 2 1
 <!-- ![Original](data/mountain-15.bmp)      | ![Result](data/mountain-filtered.png)      | 10 20 1000 20 50 80 2 2 2 1 -->
 
