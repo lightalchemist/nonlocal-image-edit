@@ -36,8 +36,8 @@ The compiled binary is located in the `bin/` directory. It takes the following a
 4. Number of evenly sampled cols for Nystrom approximation
 5. hx
 6. hy
-7. Number of iterations to run for Sinkhorn-Knopp matrix balancing algorithm
-8. Number of eigenvectors to keep for the filter
+7. Number of iterations to run the Sinkhorn-Knopp matrix balancing algorithm
+8. Number of eigenvectors of the filter matrix to use
 9. weight 1
 10.  ...
 11. weight k
