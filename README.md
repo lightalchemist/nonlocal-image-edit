@@ -1,7 +1,8 @@
-# Colorization using Optimization
+# Nonlocal image enhancement
 
-This repository contains a C++ implementation of the algorithm described in 
+This repository contains a partial C++ implementation of the algorithm described in 
 Esfandarani, Hossein Talebi and Peyman Milanfar. “Nonlocal Image Editing.” IEEE Transactions on Image Processing 23 (2014): 4460-4473.
+Specifically, only the part that decomposes the input image into detail layers based on the learned filter and recomposing them given weights for each layer is implemented.
 
 **Note:** This implementation can only handle images of moderate size (~O(100) x O(100)).
 
