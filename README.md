@@ -41,7 +41,9 @@ The compiled binary is located in the `bin/` directory. It takes the following a
 10.  ...
 11. weight k
 
-Here is an example that uses 20 and 10 evenly sampled rows and cols respectively with hx set to 5000, hy set to 30, 10 iterations for Sinkhorn algorithm, 10 eigenvectors for filter, and weights 4, 6, 6, 1.05.
+For the exact meaning of these parameters, please consult the reference paper above.
+
+Here is an example that uses 20 and 10 evenly sampled rows and cols respectively, with hx set to 5000, hy set to 30, 10 iterations for Sinkhorn algorithm, 10 eigenvectors for filter, and weights 4, 6, 6, 1.05.
 
 ```bash
 ./enhance ../data/forest-10.bmp forest-filtered.png 20 10 5000 30 10 10 4 6 6 1.05
