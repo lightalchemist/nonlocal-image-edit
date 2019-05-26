@@ -38,10 +38,11 @@ namespace nle {
                                      DType hx, DType hy, int nSinkhornIter=10, int nEigenVectors=5);
 
             void trainForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
-                                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors);
+                                 DType hx, DType hy, int nSinkhornIter, int nEigenVectors,
+                                 int sigmaColor=10, int sigmaSpace=10);
 
             cv::Mat enhance(const cv::Mat& I, const std::vector<DType>& weights) const;
-            cv::Mat denoise(const cv::Mat& I, DType k) const;
+            cv::Mat denoise(const cv::Mat& I, DType k, int sigmaColor=10, int sigmaSpace=10) const;
 
         private:
             cv::Mat apply(const cv::Mat& channel, const Vec& transformedEigVals) const;

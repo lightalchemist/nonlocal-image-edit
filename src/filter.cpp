@@ -333,7 +333,7 @@ namespace nle
 
 Vec transformEigenValues(const Vec& eigvals, const std::vector<DType>& weights)
 {
-    int nEigVals = eigvals.rows();
+    int nEigVals = eigvals.size();
     Vec fS(nEigVals);
     for (int i = 0; i < nEigVals; i++) {
         DType eig = eigvals(i);
@@ -346,7 +346,7 @@ Vec transformEigenValues(const Vec& eigvals, const std::vector<DType>& weights)
     return fS;
 }
 
-cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
+cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k, int sigmaColor, int sigmaSpace) const
 {
     if (image.channels() != 3) {
         throw std::runtime_error("Can only enchance RGB image.");
@@ -357,17 +357,18 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     }
 
     cv::Mat II;
-    cv::cvtColor(image, II, cv::COLOR_BGR2YUV);
+    // cv::cvtColor(image, II, cv::COLOR_BGR2YUV);
+    cv::cvtColor(image, II, cv::COLOR_BGR2Lab);
     std::vector<cv::Mat> channels;
     cv::split(II, channels);
 
     cv::Mat bfImage;
-    cv::bilateralFilter(image, bfImage, -1, 10, 10, cv::BORDER_DEFAULT);
+    cv::bilateralFilter(image, bfImage, -1, sigmaColor, sigmaSpace, cv::BORDER_DEFAULT);
 
     cv::Mat originalY = channels[0];
 
     cv::Mat Y;
-    cv::bilateralFilter(channels[0], Y, -1, 10, 10, cv::BORDER_DEFAULT);
+    cv::bilateralFilter(channels[0], Y, -1, sigmaColor, sigmaSpace, cv::BORDER_DEFAULT);
     channels[0] = Y;
 
     channels[0].convertTo(channels[0], OPENCV_MAT_TYPE);
@@ -377,6 +378,7 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
     Vec teigvals = m_eigvals;
     for (int i = 0; i < teigvals.size(); i++) {
         DType eval = teigvals(i);
+        eval = std::min(eval, 1.0);
         std::cout << "eig " << i << " val: " << eval << std::endl;
         teigvals(i) = std::pow(eval, k);
         // teigvals(i) = 1 - std::pow(1 - eval, k + 1);
@@ -402,7 +404,8 @@ cv::Mat NLEFilter::denoise(const cv::Mat& image, DType k) const
 
     cv::Mat filteredImage;
     cv::merge(channels, filteredImage);
-    cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
+    // cv::cvtColor(filteredImage, filteredImage, cv::COLOR_YUV2BGR);
+    cv::cvtColor(filteredImage, filteredImage, cv::COLOR_Lab2BGR);
     return filteredImage;
 }
 
@@ -471,12 +474,7 @@ cv::Mat getYChannel(const cv::Mat& image)
     cv::cvtColor(image, yuv, cv::COLOR_BGR2YUV);
     std::vector<cv::Mat> channels;
     cv::split(yuv, channels);
-
-    cv::Mat denoised;
-    cv::bilateralFilter(channels[0], denoised, -1, 10, 10, cv::BORDER_DEFAULT);
-
-    denoised.convertTo(denoised, OPENCV_MAT_TYPE);
-    return denoised;
+    return channels[0];
 }
 
 void NLEFilter::trainFilter(const cv::Mat& channel, int nRowSamples, int nColSamples,
@@ -495,7 +493,7 @@ void NLEFilter::trainFilter(const cv::Mat& channel, int nRowSamples, int nColSam
     std::cout << "Sinkhorn" << std::endl;
     Mat Wa, Wab;
     std::tie(Wa, Wab) = sinkhorn(phi, eigvals, nSinkhornIter);
-    Wa = (Wa + Wa.transpose()).eval() / 2;
+    // Wa = (Wa + Wa.transpose()).eval() / 2;
 
     std::cout << "Orthogonalize" << std::endl;
     std::tie(m_eigvecs, m_eigvals) = orthogonalize(Wa, Wab, nEigenVectors);
@@ -521,8 +519,20 @@ void NLEFilter::trainForEnhancement(const cv::Mat& image, int nRowSamples, int n
 }
 
 void NLEFilter::trainForDenoise(const cv::Mat& image, int nRowSamples, int nColSamples,
-                                DType hx, DType hy, int nSinkhornIter, int nEigenVectors)
+                                DType hx, DType hy, int nSinkhornIter, int nEigenVectors,
+                                int sigmaColor, int sigmaSpace)
 {
-    cv::Mat Y = getYChannel(image);
-    trainFilter(Y, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
+    // cv::Mat Y = getYChannel(image);
+    // cv::Mat Y = getLuminanceChannel(image);
+    cv::Mat Ilab;
+    cv::cvtColor(image, Ilab, cv::COLOR_BGR2Lab);
+    std::vector<cv::Mat> channels;
+    cv::split(Ilab, channels);
+    cv::Mat L = channels[0];
+    channels.clear();
+
+    cv::Mat denoised;
+    cv::bilateralFilter(L, denoised, -1, sigmaColor, sigmaSpace, cv::BORDER_DEFAULT);
+    denoised.convertTo(denoised, OPENCV_MAT_TYPE);
+    trainFilter(denoised, nRowSamples, nColSamples, hx, hy, nSinkhornIter, nEigenVectors);
 }

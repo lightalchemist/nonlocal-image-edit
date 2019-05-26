@@ -41,6 +41,12 @@ https://www.pexels.com/photo/flower-tree-park-landscape-92933/
 green-mountain
 https://www.pexels.com/photo/aerial-view-of-green-mountain-163550/
 
+conifer
+https://www.pexels.com/photo/green-pine-trees-1179229/
+
+matcha
+https://www.pexels.com/photo/bamboo-bamboo-whisk-board-bowls-461428/
+
 ---
 
 ./nonlocal ../data/mountain-lake-20.bmp mountain-lake-filtered.png 10 20 1000 30 20 20 2 4 8 1.0
