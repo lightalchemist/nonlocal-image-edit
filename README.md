@@ -17,8 +17,8 @@ Specifically, only the part that decomposes the input image into detail layers b
 
 **Optional**
 
-1. [Spectra](https://spectralib.org/) Optional and included in this project.
-2. Blas and Lapack
+1. [Spectra](https://spectralib.org/) This header-only library is included in this project under the `ext/` directory.
+2. BLAS and LAPACK
 
 ### Compiling with CMake
 
