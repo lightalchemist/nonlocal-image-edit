@@ -10,7 +10,7 @@ Specifically, only the part that decomposes the input image into detail layers b
 
 ### Requirements
 
-1. [C++11/14/17](https://isocpp.org/)
+1. [C++14/17](https://isocpp.org/)
 1. [OpenCV](https://opencv.org/)
 2. [Eigen3](https://eigen.tuxfamily.org/)
 3. [CMake](https://cmake.org/)
