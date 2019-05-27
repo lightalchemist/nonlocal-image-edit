@@ -4,7 +4,7 @@ This repository contains a partial C++ implementation of the algorithm described
 Hossein Talebi Esfandarani and Peyman Milanfar. “Nonlocal Image Editing.” IEEE Transactions on Image Processing 23 (2014): 4460-4473.
 Specifically, only the part that decomposes the input image into detail layers based on the learned filter and recomposing them given weights for each layer is implemented.
 
-**Note:** This implementation can only handle images of moderate size (~O(100) x O(100)).
+**Note:** This implementation can only handle images of moderate sizes (~O(100) x O(100)).
 
 ## Compile
 
