@@ -15,9 +15,20 @@ Specifically, only the part that decomposes the input image into detail layers b
 2. [Eigen3](https://eigen.tuxfamily.org/)
 3. [CMake](https://cmake.org/)
 
+**Optional**
+
+1. [Spectra](https://spectralib.org/) Optional and included in this project.
+2. Blas and Lapack
+
 ### Compiling with CMake
 
-This project includes a `CMakeLists.txt` to help locate the required libraries and their header files and generate the Makefile. If the above requirements are met, the following will generate the binaries `enhance` and `denoise`.
+This project includes a `CMakeLists.txt` to help locate the required libraries and their header files and generate the Makefile. If the above requirements are met, the following will generate the binaries `enhance`, `denoise` and `tests`. 
+
+The binary `denoise` implements the method described in Global Image Denoising. IEEE Trans. Image Processing 23(2): 755-768 (2014) but the result of this implementation is not good.
+
+The binary `tests` runs some simple unit tests to check that the numerical methods work as expected.
+
+The following will generate a Makefile for a "Release" build and use the Spectra library for computing the top K eigenvectors in the final step of the algorithm. Set `-DUSE_SPECTRA="OFF"` to use the eigen solver provided by Eigen. Set `-DUSE_BLAS="ON"` to compile against BLAS and LAPACK libraries or exclude it to not link against those libraries.
 
 ```bash
 mkdir build
