@@ -47,16 +47,6 @@ int main(int argc, char* argv[])
     cv::imwrite(outputPath, result);
     cv::imshow("Result", result);
     cv::waitKey(-1);
-
-    // TODO: Debug by manually projecting to eigenvectors and reconstructing to see result.
-    // NOTE: Seems like scaling the luminosity channel before hand belps.
-    // If we scale the luminosity channel, we also have to adjust the bandwidth for the photometric distance accordingly.
-    // Also, we need to avoid the distance part having a huge influence by setting hx to a significantly large value.
-    // Currently hy set to 0.1 since lumninosity is between 0 and 1.
-    
-    // NOTE: Manually perform filtering Wy and visualize I - Wy etc.
-    
-    
-
+        
     return 0;
 }
