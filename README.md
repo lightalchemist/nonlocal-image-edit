@@ -28,7 +28,7 @@ The binary `denoise` implements the method described in Global Image Denoising. 
 
 The binary `tests` runs some simple unit tests to check that the numerical methods work as expected.
 
-The following will generate a Makefile for a "Release" build and use the Spectra library for computing the top K eigenvectors in the final step of the algorithm. Set `-DUSE_SPECTRA="OFF"` to use the eigen solver provided by Eigen. Set `-DUSE_BLAS="ON"` to compile against BLAS and LAPACK libraries or exclude it to not link against those libraries.
+The following will generate a Makefile for a "Release" build and use the Spectra library for computing the top K eigenvectors in the final step of the algorithm. Set `-DUSE_SPECTRA="OFF"` to use the eigen solver provided by Eigen. Set `-DUSE_BLAS="ON"` to have Eigen use the BLAS and LAPACK libraries or exclude it to not link against those libraries.
 
 ```bash
 mkdir build
