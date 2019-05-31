@@ -71,15 +71,15 @@ Click on an image to see a larger version.
 
 Original                               | Result                                     | Parameters
 :-------------:                        | :-----:                                    | :---------
+![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
+![Original](data/bird.bmp)             | ![Result](data/bird-filtered.png)          | 10 20 1000 20 10 10 1 5 5 1
 ![Original](data/canyon-dawn-20.bmp)   | ![Result](data/canyon-filtered.bmp)        | 20 10 500 30 40 10 2 7 5 1
+![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     | 10 20 1000 25 30 50 2 3 3 1
 ![Original](data/conifer-10.bmp)       | ![Result](data/conifer-filtered.png)       | 25 15 800 20 40 100 2 3 5 1
 ![Original](data/forest-10.bmp)        | ![Result](data/forest-filtered.png)        | 20 10 5000 30 10 10 4 6 6 1.05
 ![Original](data/snow-mountain-15.bmp) | ![Result](data/snow-mountain-filtered.png) | 10 20 200 30 30 10 3 10 1 1
-![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
-![Original](data/brickwall-20.bmp)     | ![Result](data/brickwall-filtered.png)     | 10 20 1000 25 30 50 2 3 3 1
 ![Original](data/rock2.jpg)            | ![Result](data/rock2-filtered.png)         | 20 30 500 10 50 50 4 3 4 1 (**Note:** This example requires a lot of memory to run. Consider downsampling original image first.)
 ![Original](data/red-cherries-10.bmp)  | ![Result](data/red-cherries-filtered.png)  | 20 10 400 30 50 20 2 2 2 1
-![Original](data/bird.bmp)             | ![Result](data/bird-filtered.png)          | 10 20 1000 20 10 10 1 5 5 1
 <!-- ![Original](data/mountain-15.bmp)      | ![Result](data/mountain-filtered.png)      | 10 20 1000 20 50 80 2 2 2 1 -->
 
 ## Sample images
