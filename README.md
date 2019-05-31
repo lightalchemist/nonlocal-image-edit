@@ -1,10 +1,10 @@
 # Nonlocal image enhancement
 
 This repository contains a partial C++ implementation of the algorithm described in 
-Esfandarani, Hossein Talebi and Peyman Milanfar. “Nonlocal Image Editing.” IEEE Transactions on Image Processing 23 (2014): 4460-4473.
+Hossein Talebi Esfandarani and Peyman Milanfar. “Nonlocal Image Editing.” IEEE Transactions on Image Processing 23 (2014): 4460-4473.
 Specifically, only the part that decomposes the input image into detail layers based on the learned filter and recomposing them given weights for each layer is implemented.
 
-**Note:** This implementation can only handle images of moderate size (~O(100) x O(100)).
+**Note:** This implementation can only handle images of moderate sizes (~O(100) x O(100)).
 
 ## Compile
 
@@ -15,9 +15,20 @@ Specifically, only the part that decomposes the input image into detail layers b
 2. [Eigen3](https://eigen.tuxfamily.org/)
 3. [CMake](https://cmake.org/)
 
+**Optional**
+
+1. [Spectra](https://spectralib.org/) This header-only library is included in this project under the `ext/` directory.
+2. BLAS and LAPACK
+
 ### Compiling with CMake
 
-This project includes a `CMakeLists.txt` to help locate the required libraries and their header files and generate the Makefile. If the above requirements are met, the following will generate the binaries `enhance` and `denoise`.
+This project includes a `CMakeLists.txt` to help locate the required libraries and their header files and generate the Makefile. If the above requirements are met, the following will generate the binaries `enhance`, `denoise` and `tests`. 
+
+The binary `denoise` implements the method described in Global Image Denoising. IEEE Trans. Image Processing 23(2): 755-768 (2014) but the result of this implementation is not good.
+
+The binary `tests` runs some simple unit tests to check that the numerical methods work as expected.
+
+The following will generate a Makefile for a "Release" build and use the Spectra library for computing the top K eigenvectors in the final step of the algorithm. Set `-DUSE_SPECTRA="OFF"` to use the eigen solver provided by Eigen. Set `-DUSE_BLAS="ON"` to have Eigen use the BLAS and LAPACK libraries or exclude it to not link against those libraries.
 
 ```bash
 mkdir build
@@ -52,7 +63,11 @@ Here is an example that uses 20 and 10 evenly sampled rows and cols respectively
 
 ## Sample results
 
-In the following table, the column **Parameters**  contains the arguments passed to the program (excluding input filename and output filename) to generate each result. The input and result images are all in the `data` directory and can be found by clicking on the respective images. Click on an image to see a larger version.
+In the following table, the column **Parameters**  contains the arguments passed to the program (excluding input filename and output filename) to generate each result. 
+
+The input and result images are all in the `data` directory and can be found by clicking on the respective images.
+
+Click on an image to see a larger version.
 
 Original                               | Result                                     | Parameters
 :-------------:                        | :-----:                                    | :---------
@@ -77,7 +92,9 @@ Most of the sample images are downloaded from [pexels.com](https://www.pexels.co
 
 ## Limitations and possible improvements
 
-The method described in the paper requires us to compute the eigenvectors of a `N x N` matrix, where `N` is the number of pixels in the image. It uses the Nystrom method to approximate these eigenvectors, but it is very numerically unstable - if the bandwidths, hx and hy, are not set appropriately, the errors in the eigenvectors can be large. Furthermore, we will need to allocate memory of size `O(kN)` to store intermediate matrices. If the matrix has high rank, `k` can be fairly large, so even for modest size images the system will have trouble allocating the required memory.
+The method described in the paper requires us to compute the eigenvectors of a `N x N` matrix, where `N` is the number of pixels in the image. It uses the Nystrom method to approximate these eigenvectors with only a subset of the entries of this matrix, but it is not numerically stable; if the bandwidths, hx and hy, are not set appropriately, the errors in the eigenvectors can be large. Furthermore, even though we avoided computing the entire `N x N` matrix, we will need to allocate memory of size `O(kN)` to store intermediate matrices. If the matrix has high rank, `k` can be fairly large, so even for modest size images the system will have trouble allocating the required memory.
+
+Also, the Nystrom approximation does not work well when the scene is very complex, i.e., lacks regularity. This is probably because the affinity matrix computed from the image is unlikely low-rank (an assumption required for Nystrom approximation). In practice, we see that the results for scenes with nice regular pattern such as the white brick wall above works better than other more complicated scenes.
 
 One possibility of handling these problems is to find better ways to sample the entries of the image for building the affinity matrix `Ka` and `Kab`(see paper). See the method described in Si, Si, Cho-Jui Hsieh and Inderjit S. Dhillon. “Computationally Efficient Nyström Approximation using Fast Transforms.” ICML (2016) and related works for details.
 

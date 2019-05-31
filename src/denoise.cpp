@@ -30,11 +30,6 @@ int main(int argc, char* argv[])
     double sigmaSpace = std::stod(argv[10]);
     double shrinkFactor = std::stod(argv[11]);
 
-    // std::vector<nle::DType> weights;
-    // for (auto i = 9; i < argc; ++i) {
-    //     weights.push_back(std::stod(argv[i]));
-    // }
-
     cv::Mat image = cv::imread(imagePath);
     if (image.empty()) {
         std::cerr << "Failed to read file from " << imagePath << std::endl;
