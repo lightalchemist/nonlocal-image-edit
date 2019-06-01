@@ -70,7 +70,7 @@ The input and result images are all in the `data` directory and can be found by 
 Click on an image to see a larger version.
 
 Original                               | Result                                     | Parameters
-:-------------:                        | :-----:                                    | :---------
+:-------------:                        | :-----:                                    | :---------:
 ![Original](data/flower-50.bmp)        | ![Result](data/flower-filtered.png)        | 10 20 100 30 50 30 2 3 4 1
 ![Original](data/bird.bmp)             | ![Result](data/bird-filtered.png)          | 10 20 1000 20 10 10 1 5 5 1
 ![Original](data/canyon-dawn-20.bmp)   | ![Result](data/canyon-filtered.bmp)        | 20 10 500 30 40 10 2 7 5 1
